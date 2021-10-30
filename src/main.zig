@@ -156,8 +156,6 @@ fn writev(token: arviss.ElfToken, addr: u32, src: ?*c_void, len: u32) callconv(.
 }
 
 pub fn main() !void {
-    const stdout = std.io.getStdOut().writer();
-
     const filename = "hello";
 
     var mem: Memory = .{ .mem = undefined };
