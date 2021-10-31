@@ -23,6 +23,14 @@ pub fn build(b: *std.build.Builder) void {
     exe.setBuildMode(mode);
     exe.install();
 
+    const tests = b.addTest("src/arviss/tests.zig");
+    tests.addPackagePath("arviss", arviss_path ++ "arviss.zig");
+    tests.addIncludeDir(arviss_path);
+    tests.linkLibrary(arviss);
+    const test_step = b.step("tests", "Run all tests");
+    test_step.dependOn(&tests.step);
+
+    test_step.dependOn(&tests.step);
     const run_cmd = exe.run();
     run_cmd.step.dependOn(b.getInstallStep());
     if (b.args) |args| {
