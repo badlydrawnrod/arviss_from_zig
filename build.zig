@@ -1,5 +1,7 @@
 const std = @import("std");
 
+const arviss_path = "src/arviss/";
+
 pub fn build(b: *std.build.Builder) void {
     // Standard target options allows the person running `zig build` to choose
     // what target to build for. Here we do not override the defaults, which
@@ -11,11 +13,12 @@ pub fn build(b: *std.build.Builder) void {
     // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall.
     const mode = b.standardReleaseOptions();
 
+    const arviss = buildArviss(b, target, mode);
+
     const exe = b.addExecutable("arviss", "src/main.zig");
-    exe.addIncludeDir("src");
-    exe.addCSourceFile("src/arviss.c", &[_][]const u8 {});
-    exe.addCSourceFile("src/loadelf.c", &[_][]const u8 {});
-    exe.linkLibC();
+    exe.addPackagePath("arviss", arviss_path ++ "arviss.zig");
+    exe.addIncludeDir(arviss_path);
+    exe.linkLibrary(arviss);
     exe.setTarget(target);
     exe.setBuildMode(mode);
     exe.install();
@@ -28,4 +31,16 @@ pub fn build(b: *std.build.Builder) void {
 
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
+}
+
+fn buildArviss(b: *std.build.Builder, target: std.zig.CrossTarget, mode: std.builtin.Mode) *std.build.LibExeObjStep {
+    const lib = b.addStaticLibrary("arviss", null);
+    lib.setTarget(target);
+    lib.setBuildMode(mode);
+
+    lib.addCSourceFile(arviss_path ++ "arviss.c", &[_][]const u8{});
+    lib.addCSourceFile(arviss_path ++ "loadelf.c", &[_][]const u8{});
+    lib.linkLibC();
+
+    return lib;
 }

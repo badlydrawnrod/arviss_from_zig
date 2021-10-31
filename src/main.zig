@@ -1,10 +1,7 @@
 //! An example of using Arviss from Zig.
 
 const std = @import("std");
-const arviss = @cImport({
-    @cInclude("arviss.h");
-    @cInclude("loadelf.h");
-});
+const arviss = @import("arviss");
 
 const membase: u32 = 0;
 const memsize: u32 = 0x8000;
