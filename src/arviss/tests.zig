@@ -153,7 +153,8 @@ var memory: Memory = .{ .mem = undefined };
 fn ArvissCpu(mem: *Memory) arviss.ArvissCpu {
     var cpu: arviss.ArvissCpu = undefined;
     arviss.ArvissReset(&cpu);
-    cpu.pc = 0x100;
+    cpu.pc = rambase;
+    cpu.xreg[2] = rambase + ramsize; // Set the stack pointer.
     cpu.bus = .{
         .token = .{ .t = mem },
         .Read8 = read8,
@@ -219,7 +220,7 @@ test "auipc" {
         _ = ArvissExecute(&cpu, @bitCast(u32, (imm_u << 12)) | encodeRd(rd) | @enumToInt(arviss.ArvissOpcode.opAUIPC));
 
         // rd <- pc + imm_u
-        try testing.expectEqual(pc + @bitCast(u32, imm_u << 12), cpu.xreg[rd]);
+        try testing.expectEqual(pc +% @bitCast(u32, imm_u << 12), cpu.xreg[rd]);
 
         // pc <- pc + 4
         try testing.expectEqual(pc + 4, cpu.pc);
@@ -566,7 +567,7 @@ test "lh (load halfword)" {
     const rs1: u32 = 6;
     cpu.xreg[rs1] = rambase;
 
-    // Sign extend when bit 7 is zero.
+    // Sign extend when bit 15 is zero.
     memory.write16(cpu.xreg[rs1] + imm_i, 0x7fff, &cpu.busCode);
 
    _ = ArvissExecute(&cpu, encodeI(imm_i) | encodeRs1(rs1) | (0b001 << 12) | encodeRd(rd) | @enumToInt(arviss.ArvissOpcode.opLOAD));
@@ -577,7 +578,7 @@ test "lh (load halfword)" {
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 
-    // Sign extend when bit 7 is one.
+    // Sign extend when bit 15 is one.
     pc = cpu.pc;
     memory.write16(cpu.xreg[rs1] + imm_i, 0xffff, &cpu.busCode);
 
@@ -601,7 +602,7 @@ test "lw (load word)" {
     const rs1: u32 = 15;
     cpu.xreg[rs1] = rambase;
 
-    // Sign extend when bit 7 is zero.
+    // Sign extend when bit 31 is zero.
     memory.write32(cpu.xreg[rs1] + imm_i, 0x7fffffff, &cpu.busCode);
 
    _ = ArvissExecute(&cpu, encodeI(imm_i) | encodeRs1(rs1) | (0b010 << 12) | encodeRd(rd) | @enumToInt(arviss.ArvissOpcode.opLOAD));
@@ -612,7 +613,7 @@ test "lw (load word)" {
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 
-    // Sign extend when bit 7 is one.
+    // Sign extend when bit 31 is one.
     pc = cpu.pc;
     memory.write32(cpu.xreg[rs1] + imm_i, 0xffffffff, &cpu.busCode);
 
@@ -629,8 +630,7 @@ test "lbu (load byte unsigned)" {
     var cpu = Cpu();
 
     // rd <- zx(m8(rs1 + imm_i)), pc += 4
-    cpu.pc = 0x1000;
-    var pc: u32 = cpu.pc;
+    cpu.pc = 0x1000;    var pc: u32 = cpu.pc;
     const imm_i: i32 = -5;
     const rd: u32 = 23;
     const rs1: u32 = 18;
@@ -655,6 +655,40 @@ test "lbu (load byte unsigned)" {
 
     // rd <- zx(m8(rs1 + imm_i))
     try testing.expectEqual(@intCast(u32, 0xff), cpu.xreg[rd]);
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+}
+
+test "lhu (load halfword unsigned)" {
+    var cpu = Cpu();
+
+    // rd <- zx(m16(rs1 + imm_i)), pc += 4
+    var pc: u32 = cpu.pc;
+    const imm_i: i32 = -1024;
+    const rd: u32 = 13;
+    const rs1: u32 = 16;
+    cpu.xreg[rs1] = rambase + ramsize / 2;
+
+    // Zero extend when bit 15 is zero.
+    memory.write16(@intCast(u32, @intCast(i32, cpu.xreg[rs1]) + imm_i), 0x7fff, &cpu.busCode);
+
+   _ = ArvissExecute(&cpu, encodeI(@bitCast(u32, imm_i)) | encodeRs1(rs1) | (0b101 << 12) | encodeRd(rd) | @enumToInt(arviss.ArvissOpcode.opLOAD));
+
+    // rd <- zx(m16(rs1 + imm_i))
+    try testing.expectEqual(@intCast(u32, 0x7fff), cpu.xreg[rd]);
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+
+    // Zero extend when bit 15 is one.
+    pc = cpu.pc;
+    memory.write16(@intCast(u32, @intCast(i32, cpu.xreg[rs1]) + imm_i), 0xffff, &cpu.busCode);
+
+   _ = ArvissExecute(&cpu, encodeI(@bitCast(u32, imm_i)) | encodeRs1(rs1) | (0b101 << 12) | encodeRd(rd) | @enumToInt(arviss.ArvissOpcode.opLOAD));
+
+    // rd <- zx(m16(rs1 + imm_i))
+    try testing.expectEqual(@intCast(u32, 0xffff), cpu.xreg[rd]);
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
