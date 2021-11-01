@@ -152,6 +152,7 @@ var memory: Memory = .{ .mem = undefined };
 
 fn ArvissCpu(mem: *Memory) arviss.ArvissCpu {
     var cpu: arviss.ArvissCpu = undefined;
+    arviss.ArvissReset(&cpu);
     cpu.pc = 0x100;
     cpu.bus = .{
         .token = .{ .t = mem },
@@ -514,6 +515,41 @@ test "bgeu" {
     cpu.xreg[rs2] = 0xffffffff;
 
     _ = ArvissExecute(&cpu, encodeB(imm_b) | encodeRs2(rs2) | encodeRs1(rs1) | (0b111 << 12) | @enumToInt(arviss.ArvissOpcode.opBRANCH));
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+}
+
+test "lb" {
+    var cpu = Cpu();
+
+    // rd <- sx(m8(rs1 + imm_i)), pc += 4
+    cpu.pc = 0x1000;
+    var pc: u32 = cpu.pc;
+    const imm_i: i32 = 23;
+    const rd: u32 = 31;
+    const rs1: u32 = 13;
+    cpu.xreg[rs1] = rambase;
+
+    // Sign extend when bit 7 is zero.
+    memory.write8(cpu.xreg[rs1] + imm_i, 123, &cpu.busCode);
+
+   _ = ArvissExecute(&cpu, encodeI(imm_i) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(rd) | @enumToInt(arviss.ArvissOpcode.opLOAD));
+
+    // rd <- sx(m8(rs1 + imm_i))
+    try testing.expectEqual(@intCast(u32, 123), cpu.xreg[rd]);
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+
+    // Sign extend when bit 7 is one.
+    pc = cpu.pc;
+    memory.write8(cpu.xreg[rs1] + imm_i, 0xff, &cpu.busCode);
+
+   _ = ArvissExecute(&cpu, encodeI(imm_i) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(rd) | @enumToInt(arviss.ArvissOpcode.opLOAD));
+
+    // rd <- sx(m8(rs1 + imm_i))
+    try testing.expectEqual(@intCast(u32, 0xffffffff), cpu.xreg[rd]);
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
