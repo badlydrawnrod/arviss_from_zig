@@ -854,7 +854,7 @@ static void Exec_Srli(ArvissCpu* cpu, const DecodedInstruction* ins)
 
 static void Exec_Srai(ArvissCpu* cpu, const DecodedInstruction* ins)
 {
-    // rd <- rs1 >> shamt_i, pc += 4
+    // rd <- sx(rs1) >> shamt_i, pc += 4
     TRACE("SRAI %s, %s, %d\n", abiNames[ins->rd_rs1_imm.rd], abiNames[ins->rd_rs1_imm.rs1], ins->rd_rs1_imm.imm);
     cpu->xreg[ins->rd_rs1_imm.rd] = (int32_t)cpu->xreg[ins->rd_rs1_imm.rs1] >> ins->rd_rs1_imm.imm;
     cpu->pc += 4;
@@ -1641,7 +1641,7 @@ static DecodedInstruction ArvissDecode(uint32_t instruction)
         case 0b010: // SLTI
             return MkRdRs1Imm(Exec_Slti, rd, rs1, imm);
         case 0b011: // SLTIU
-            return MkRdRs1Imm(Exec_Sltiu, rd, rs1, imm);
+            return MkRdRs1Imm(Exec_Sltiu, rd, rs1, imm & 0x1f);
         case 0b100: // XORI
             return MkRdRs1Imm(Exec_Xori, rd, rs1, imm);
         case 0b110: // ORI
@@ -1649,14 +1649,14 @@ static DecodedInstruction ArvissDecode(uint32_t instruction)
         case 0b111: // ANDI
             return MkRdRs1Imm(Exec_Andi, rd, rs1, imm);
         case 0b001: // SLLI
-            return MkRdRs1Imm(Exec_Slli, rd, rs1, imm);
+            return MkRdRs1Imm(Exec_Slli, rd, rs1, imm & 0x1f);
         case 0b101:
             switch (funct7)
             {
             case 0b0000000: // SRLI
-                return MkRdRs1Imm(Exec_Srli, rd, rs1, imm);
+                return MkRdRs1Imm(Exec_Srli, rd, rs1, imm & 0x1f);
             case 0b0100000: // SRAI
-                return MkRdRs1Imm(Exec_Srai, rd, rs1, imm);
+                return MkRdRs1Imm(Exec_Srai, rd, rs1, imm & 0x1f);
             default:
                 return MkTrap(Exec_IllegalInstruction, instruction);
             }
