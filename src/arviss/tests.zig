@@ -935,3 +935,22 @@ test "ori (or immediate)" {
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 }
+
+test "andi (and immediate)" {
+    var cpu = Cpu();
+
+    // rd <- rs1 & imm_i, pc += 4
+    var pc: u32 = cpu.pc;
+    const rd: u32 = 5;
+    const rs1: u32 = 3;
+    var imm_i: i32 = 0xfff0;
+    cpu.xreg[rs1] = 0xffff;
+
+    _ = ArvissExecute(&cpu, encodeI(@bitCast(u32, imm_i)) | encodeRs1(rs1) | (0b111 << 12) | encodeRd(rd) | @enumToInt(arviss.ArvissOpcode.opOPIMM));
+
+    // rd <- rs1 & imm_i
+    try testing.expectEqual(cpu.xreg[rs1] & @bitCast(u32, imm_i), cpu.xreg[rd]);
+    
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+}
