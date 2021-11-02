@@ -693,3 +693,42 @@ test "lhu (load halfword unsigned)" {
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 }
+
+test "loads don't affect x0" {
+    var cpu = Cpu();
+
+    memory.write32(rambase, 0x12345678, &cpu.busCode);
+
+    // lb
+    const rs1: u32 = 13;
+    cpu.xreg[rs1] = rambase;
+    memory.write8(rambase, 0xff, &cpu.busCode);
+    _ = ArvissExecute(&cpu, encodeI(0) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(0) | @enumToInt(arviss.ArvissOpcode.opLOAD));
+
+    // x0 <- 0
+    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+
+    // lh
+    _ = ArvissExecute(&cpu, encodeI(0) | encodeRs1(rs1) | (0b001 << 12) | encodeRd(0) | @enumToInt(arviss.ArvissOpcode.opLOAD));
+
+    // x0 <- 0
+    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+
+    // lw
+    _ = ArvissExecute(&cpu, encodeI(0) | encodeRs1(rs1) | (0b010 << 12) | encodeRd(0) | @enumToInt(arviss.ArvissOpcode.opLOAD));
+
+    // x0 <- 0
+    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+
+    // lbu
+    _ = ArvissExecute(&cpu, encodeI(0) | encodeRs1(rs1) | (0b100 << 12) | encodeRd(0) | @enumToInt(arviss.ArvissOpcode.opLOAD));
+
+    // x0 <- 0
+    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+
+    // lhu
+    _ = ArvissExecute(&cpu, encodeI(0) | encodeRs1(rs1) | (0b101 << 12) | encodeRd(0) | @enumToInt(arviss.ArvissOpcode.opLOAD));
+
+    // x0 <- 0
+    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+}
