@@ -833,3 +833,36 @@ test "addi (add immediate)" {
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 }
+
+test "slti (set less than immediate)" {
+    var cpu = Cpu();
+
+    // rd <- (rs1 < imm_i) ? 1 : 0, pc += 4
+    var pc: u32 = cpu.pc;
+
+    const imm_i: i32 = 0;
+    const rd: u32 = 19;
+    const rs1: u32 = 27;
+
+    // Condition true.
+    cpu.xreg[rs1] = 0xffffffff; // (-1)
+    _ = ArvissExecute(&cpu, encodeI(@bitCast(u32, imm_i)) | encodeRs1(rs1) | (0b010 << 12) | encodeRd(rd) | @enumToInt(arviss.ArvissOpcode.opOPIMM));
+
+    // rd <- (rs1 < imm_i) ? 1 : 0
+    try testing.expectEqual(@intCast(u32, 1), cpu.xreg[rd]);
+    
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+
+    // Condition false.
+    pc = cpu.pc;
+    cpu.xreg[rs1] = 123;
+    _ = ArvissExecute(&cpu, encodeI(@bitCast(u32, imm_i)) | encodeRs1(rs1) | (0b010 << 12) | encodeRd(rd) | @enumToInt(arviss.ArvissOpcode.opOPIMM));
+
+    // rd <- (rs1 < imm_i) ? 1 : 0
+    // try testing.expectEqual(@intCast(u32, 0), cpu.xreg[rd]);
+    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[rd]);
+    
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+}
