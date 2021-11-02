@@ -802,3 +802,34 @@ test "sw (store word)" {
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 }
+
+test "addi (add immediate)" {
+    var cpu = Cpu();
+
+    // rd <- rs1 + imm_i, pc += 4
+    var pc: u32 = cpu.pc;
+    const rd: u32 = 15;
+    const rs1: u32 = 12;
+    var imm_i: i32 = 64;
+    cpu.xreg[rs1] = 128;
+
+    // Add immediate.
+    _ = ArvissExecute(&cpu, encodeI(@bitCast(u32, imm_i)) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(rd) | @enumToInt(arviss.ArvissOpcode.opOPIMM));
+
+    // rd <- rs1 + imm_i
+    try testing.expectEqual(@bitCast(u32, @bitCast(i32, cpu.xreg[rs1]) + imm_i), cpu.xreg[rd]);
+    
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+
+    // Add negative number.
+    pc = cpu.pc;
+    imm_i = -123;
+    _ = ArvissExecute(&cpu, encodeI(@bitCast(u32, imm_i)) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(rd) | @enumToInt(arviss.ArvissOpcode.opOPIMM));
+
+    // rd <- rs1 + imm_i
+    try testing.expectEqual(@bitCast(u32, @bitCast(i32, cpu.xreg[rs1]) + imm_i), cpu.xreg[rd]);
+    
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+}
