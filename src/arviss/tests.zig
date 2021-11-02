@@ -897,3 +897,41 @@ test "sltiu (set less than immediate unsigned)" {
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 }
+
+test "xori (xor immediate)" {
+    var cpu = Cpu();
+
+    // rd <- rs1 ^ imm_i, pc += 4
+    var pc: u32 = cpu.pc;
+    const rd: u32 = 5;
+    const rs1: u32 = 3;
+    var imm_i: i32 = -1;
+    cpu.xreg[rs1] = 123456;
+
+    _ = ArvissExecute(&cpu, encodeI(@bitCast(u32, imm_i)) | encodeRs1(rs1) | (0b100 << 12) | encodeRd(rd) | @enumToInt(arviss.ArvissOpcode.opOPIMM));
+
+    // rd <- rs1 ^ imm_i
+    try testing.expectEqual(cpu.xreg[rs1] ^ @bitCast(u32, imm_i), cpu.xreg[rd]);
+    
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+}
+
+test "ori (or immediate)" {
+    var cpu = Cpu();
+
+    // rd <- rs1 | imm_i, pc += 4
+    var pc: u32 = cpu.pc;
+    const rd: u32 = 25;
+    const rs1: u32 = 13;
+    var imm_i: i32 = 0x00ff;
+    cpu.xreg[rs1] = 0xff00;
+
+    _ = ArvissExecute(&cpu, encodeI(@bitCast(u32, imm_i)) | encodeRs1(rs1) | (0b110 << 12) | encodeRd(rd) | @enumToInt(arviss.ArvissOpcode.opOPIMM));
+
+    // rd <- rs1 | imm_i
+    try testing.expectEqual(cpu.xreg[rs1] | @bitCast(u32, imm_i), cpu.xreg[rd]);
+    
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+}
