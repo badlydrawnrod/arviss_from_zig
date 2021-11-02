@@ -954,3 +954,22 @@ test "andi (and immediate)" {
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 }
+
+test "slli (shift left logical immediate)" {
+    var cpu = Cpu();
+
+    // rd <- rs1 << shamt_i, pc += 4
+    var pc: u32 = cpu.pc;
+    const rd: u32 = 5;
+    const rs1: u32 = 3;
+    const shamt: u32 = 4;
+    cpu.xreg[rs1] = 0x0010;
+
+    _ = ArvissExecute(&cpu, encodeI(shamt) | encodeRs1(rs1) | (0b001 << 12) | encodeRd(rd) | @enumToInt(arviss.ArvissOpcode.opOPIMM));
+
+    // rd <- rs1 << shamt_i
+    try testing.expectEqual(cpu.xreg[rs1] << shamt, cpu.xreg[rd]);
+    
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+}
