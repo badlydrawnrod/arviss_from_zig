@@ -973,3 +973,22 @@ test "slli (shift left logical immediate)" {
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 }
+
+test "srli (shift right logical immediate)" {
+    var cpu = Cpu();
+
+    // rd <- rs1 << shamt_i, pc += 4
+    var pc: u32 = cpu.pc;
+    const rd: u32 = 15;
+    const rs1: u32 = 23;
+    const shamt: u32 = 4;
+    cpu.xreg[rs1] = 0x1000;
+
+    _ = ArvissExecute(&cpu, encodeI(shamt) | encodeRs1(rs1) | (0b101 << 12) | encodeRd(rd) | @enumToInt(arviss.ArvissOpcode.opOPIMM));
+
+    // rd <- rs1 >> shamt_i
+    try testing.expectEqual(cpu.xreg[rs1] >> shamt, cpu.xreg[rd]);
+    
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+}
