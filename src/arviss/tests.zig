@@ -1011,3 +1011,64 @@ test "srai (shift right arithmetic immediate)" {
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 }
+
+test "immediate ops don't affect x0" {
+    var cpu = Cpu();
+
+    // addi
+    _ = ArvissExecute(&cpu, encodeI(123) | encodeRs1(1) | (0b000 << 12) | encodeRd(0) | @enumToInt(arviss.ArvissOpcode.opOPIMM));
+
+    // x0 <- 0
+    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+
+    // slti
+    _ = ArvissExecute(&cpu, encodeI(123) | encodeRs1(1) | (0b010 << 12) | encodeRd(0) | @enumToInt(arviss.ArvissOpcode.opOPIMM));
+
+    // x0 <- 0
+    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+
+    // sltiu
+    _ = ArvissExecute(&cpu, encodeI(123) | encodeRs1(1) | (0b011 << 12) | encodeRd(0) | @enumToInt(arviss.ArvissOpcode.opOPIMM));
+
+    // x0 <- 0
+    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+
+    // xori
+    _ = ArvissExecute(&cpu, encodeI(123) | encodeRs1(1) | (0b100 << 12) | encodeRd(0) | @enumToInt(arviss.ArvissOpcode.opOPIMM));
+
+    // x0 <- 0
+    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+
+    // ori
+    _ = ArvissExecute(&cpu, encodeI(123) | encodeRs1(1) | (0b110 << 12) | encodeRd(0) | @enumToInt(arviss.ArvissOpcode.opOPIMM));
+
+    // x0 <- 0
+    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+
+    // andi
+    _ = ArvissExecute(&cpu, encodeI(123) | encodeRs1(1) | (0b111 << 12) | encodeRd(0) | @enumToInt(arviss.ArvissOpcode.opOPIMM));
+
+    // x0 <- 0
+    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+
+    // slli
+    cpu.xreg[1] = 0xffffffff;
+    _ = ArvissExecute(&cpu, encodeI(0xff) | encodeRs1(1) | (0b001 << 12) | encodeRd(0) | @enumToInt(arviss.ArvissOpcode.opOPIMM));
+
+    // x0 <- 0
+    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+
+    // srli
+    cpu.xreg[1] = 0xffffffff;
+    _ = ArvissExecute(&cpu, encodeI(3) | encodeRs1(1) | (0b101 << 12) | encodeRd(0) | @enumToInt(arviss.ArvissOpcode.opOPIMM));
+
+    // x0 <- 0
+    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+
+    // srai
+    cpu.xreg[1] = 0xffffffff;
+    _ = ArvissExecute(&cpu, (1 << 30) | encodeI(3) | encodeRs1(1) | (0b101 << 12) | encodeRd(0) | @enumToInt(arviss.ArvissOpcode.opOPIMM));
+
+    // x0 <- 0
+    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+}
