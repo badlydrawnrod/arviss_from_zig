@@ -781,3 +781,24 @@ test "sh (store halfword)" {
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 }
+
+test "sw (store word)" {
+    var cpu = Cpu();
+
+    // m32(rs1 + imm_s) <- rs2[31:0], pc += 4
+    var pc: u32 = cpu.pc;
+    const imm_s: i32 = 222;
+    const rs1: u32 = 2;
+    const rs2: u32 = 29;
+    cpu.xreg[rs1] = rambase + ramsize / 2;
+
+    _ = ArvissExecute(&cpu, encodeS(@bitCast(u32, imm_s)) | encodeRs2(rs2) | encodeRs1(rs1) | (0b010 << 12) | @enumToInt(arviss.ArvissOpcode.opSTORE));
+
+    // m32(rs1 + imm_s) <- rs2[31:0]
+    const word_result = memory.read32(@bitCast(u32, @bitCast(i32, cpu.xreg[rs1]) + imm_s), &cpu.busCode);
+    try testing.expectEqual(arviss.BusCode.bcOK, cpu.busCode);
+    try testing.expectEqual(word_result, cpu.xreg[rs2]);
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+}
