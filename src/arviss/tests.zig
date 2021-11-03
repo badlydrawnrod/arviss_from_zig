@@ -1093,3 +1093,24 @@ test "add" {
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 }
+
+test "sub" {
+    var cpu = Cpu();
+
+    // rd <- rs1 - rs2, pc += 4
+    var pc: u32 = cpu.pc;
+    const rd: u32 = 1;
+    const rs1: u32 = 2;
+    const rs2: u32 = 3;
+    cpu.xreg[rs1] = 192;
+    cpu.xreg[rs2] = 64;
+
+    // Add.
+    _ = ArvissExecute(&cpu, (0b0100000 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(rd) | @enumToInt(arviss.ArvissOpcode.opOP));
+
+    // rd <- rs1 - rs2
+    try testing.expectEqual(cpu.xreg[rs1] -% cpu.xreg[rs2], cpu.xreg[rd]);
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+}
