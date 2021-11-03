@@ -1265,3 +1265,39 @@ test "mulhsu" { // 'M' extension.
     _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b010 << 12) | encodeRd(0) | @enumToInt(arviss.ArvissOpcode.opOP));
     try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
 }
+
+test "sltu (set less than unsigned)" {
+    var cpu = Cpu();
+
+    // rd <- (rs1 < rs2) ? 1 : 0, pc += 4
+    var pc: u32 = cpu.pc;
+    const rd: u32 = 19;
+    const rs1: u32 = 7;
+    const rs2: u32 = 4;
+    cpu.xreg[rs2] = 0xffffffff;
+
+    // Condition true.
+    cpu.xreg[rs1] = 0;
+    _ = ArvissExecute(&cpu, (0 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b011 << 12) | encodeRd(rd) | @enumToInt(arviss.ArvissOpcode.opOP));
+
+    // rd <- (rs1 < imm_i) ? 1 : 0
+    try testing.expectEqual(@intCast(u32, 1), cpu.xreg[rd]);
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+
+    // Condition false.
+    pc = cpu.pc;
+    cpu.xreg[rs1] = 0xffffffff;
+    _ = ArvissExecute(&cpu, (0 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b011 << 12) | encodeRd(rd) | @enumToInt(arviss.ArvissOpcode.opOP));
+
+    // rd <- (rs1 < imm_i) ? 1 : 0
+    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[rd]);
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+
+    // x0 <- 0
+    _ = ArvissExecute(&cpu, (0 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b011 << 12) | encodeRd(0) | @enumToInt(arviss.ArvissOpcode.opOP));
+    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+}
