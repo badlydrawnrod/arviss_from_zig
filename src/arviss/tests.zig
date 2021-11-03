@@ -1092,6 +1092,10 @@ test "add" {
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
+
+    // x0 <- 0
+    _ = ArvissExecute(&cpu, (0 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(0) | @enumToInt(arviss.ArvissOpcode.opOP));
+    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
 }
 
 test "sub" {
@@ -1105,7 +1109,6 @@ test "sub" {
     cpu.xreg[rs1] = 192;
     cpu.xreg[rs2] = 64;
 
-    // Add.
     _ = ArvissExecute(&cpu, (0b0100000 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(rd) | @enumToInt(arviss.ArvissOpcode.opOP));
 
     // rd <- rs1 - rs2
@@ -1113,4 +1116,34 @@ test "sub" {
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
+
+    // x0 <- 0
+    _ = ArvissExecute(&cpu, (0b0100000 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(0) | @enumToInt(arviss.ArvissOpcode.opOP));
+    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+}
+
+test "mul" { // 'M' extension.
+    // MUL performs a 32-bit x 32-bit multiplication of rs1 by rs2 and places the lower 32 bits in the destination register.
+    var cpu = Cpu();
+
+    // rd <- lower32(rs1 * rs2), pc += 4
+    var pc: u32 = cpu.pc;
+    const rd: u32 = 5;
+    const rs1: u32 = 13;
+    const rs2: u32 = 14;
+    cpu.xreg[rs1] = 333;
+    cpu.xreg[rs2] = 3;
+    const expected: u32 = 999;
+
+    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(rd) | @enumToInt(arviss.ArvissOpcode.opOP));
+
+    // rd <- lower32(rs1 * rs2)
+    try testing.expectEqual(expected, cpu.xreg[rd]);
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+
+    // x0 <- 0
+    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(0) | @enumToInt(arviss.ArvissOpcode.opOP));
+    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
 }
