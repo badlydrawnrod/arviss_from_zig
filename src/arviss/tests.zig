@@ -145,9 +145,9 @@ inline fn encodeB(n: u32) u32 {
 }
 
 inline fn encodeS(n: u32) u32 {
-    return ((n & 0xfe0) << 20)  // imm[11:5] -> s[31:25]
-            | ((n & 0x1f) << 7) // imm[4:0]  -> s[11:7]
-            ;
+    return ((n & 0xfe0) << 20) // imm[11:5] -> s[31:25]
+    | ((n & 0x1f) << 7) // imm[4:0]  -> s[11:7]
+    ;
 }
 
 inline fn encodeI(n: u32) u32 {
@@ -818,7 +818,7 @@ test "addi (add immediate)" {
 
     // rd <- rs1 + imm_i
     try testing.expectEqual(@bitCast(u32, @bitCast(i32, cpu.xreg[rs1]) + imm_i), cpu.xreg[rd]);
-    
+
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 
@@ -829,7 +829,7 @@ test "addi (add immediate)" {
 
     // rd <- rs1 + imm_i
     try testing.expectEqual(@bitCast(u32, @bitCast(i32, cpu.xreg[rs1]) + imm_i), cpu.xreg[rd]);
-    
+
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 }
@@ -850,7 +850,7 @@ test "slti (set less than immediate)" {
 
     // rd <- (rs1 < imm_i) ? 1 : 0
     try testing.expectEqual(@intCast(u32, 1), cpu.xreg[rd]);
-    
+
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 
@@ -861,7 +861,7 @@ test "slti (set less than immediate)" {
 
     // rd <- (rs1 < imm_i) ? 1 : 0
     try testing.expectEqual(@intCast(u32, 0), cpu.xreg[rd]);
-    
+
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 }
@@ -882,7 +882,7 @@ test "sltiu (set less than immediate unsigned)" {
 
     // rd <- (rs1 < imm_i) ? 1 : 0
     try testing.expectEqual(@intCast(u32, 1), cpu.xreg[rd]);
-    
+
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 
@@ -893,7 +893,7 @@ test "sltiu (set less than immediate unsigned)" {
 
     // rd <- (rs1 < imm_i) ? 1 : 0
     try testing.expectEqual(@intCast(u32, 0), cpu.xreg[rd]);
-    
+
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 }
@@ -912,7 +912,7 @@ test "xori (xor immediate)" {
 
     // rd <- rs1 ^ imm_i
     try testing.expectEqual(cpu.xreg[rs1] ^ @bitCast(u32, imm_i), cpu.xreg[rd]);
-    
+
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 }
@@ -931,7 +931,7 @@ test "ori (or immediate)" {
 
     // rd <- rs1 | imm_i
     try testing.expectEqual(cpu.xreg[rs1] | @bitCast(u32, imm_i), cpu.xreg[rd]);
-    
+
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 }
@@ -950,7 +950,7 @@ test "andi (and immediate)" {
 
     // rd <- rs1 & imm_i
     try testing.expectEqual(cpu.xreg[rs1] & @bitCast(u32, imm_i), cpu.xreg[rd]);
-    
+
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 }
@@ -969,7 +969,7 @@ test "slli (shift left logical immediate)" {
 
     // rd <- rs1 << shamt_i
     try testing.expectEqual(cpu.xreg[rs1] << shamt, cpu.xreg[rd]);
-    
+
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 }
@@ -988,7 +988,7 @@ test "srli (shift right logical immediate)" {
 
     // rd <- rs1 >> shamt_i
     try testing.expectEqual(cpu.xreg[rs1] >> shamt, cpu.xreg[rd]);
-    
+
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 }
@@ -1007,7 +1007,7 @@ test "srai (shift right arithmetic immediate)" {
 
     // rd <- sx(rs1) >> shamt_i
     try testing.expectEqual(@bitCast(u32, @bitCast(i32, cpu.xreg[rs1]) >> shamt), cpu.xreg[rd]);
-    
+
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 }
@@ -1071,4 +1071,25 @@ test "immediate ops don't affect x0" {
 
     // x0 <- 0
     try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+}
+
+test "add" {
+    var cpu = Cpu();
+
+    // rd <- rs1 + rs2, pc += 4
+    var pc: u32 = cpu.pc;
+    const rd: u32 = 1;
+    const rs1: u32 = 2;
+    const rs2: u32 = 3;
+    cpu.xreg[rs1] = 128;
+    cpu.xreg[rs2] = 64;
+
+    // Add.
+    _ = ArvissExecute(&cpu, (0 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(rd) | @enumToInt(arviss.ArvissOpcode.opOP));
+
+    // rd <- rs1 + rs2
+    try testing.expectEqual(cpu.xreg[rs1] +% cpu.xreg[rs2], cpu.xreg[rd]);
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
 }
