@@ -1536,3 +1536,27 @@ test "rem" { // 'M' extension.
     _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b110 << 12) | encodeRd(0) | @enumToInt(arviss.ArvissOpcode.opOP));
     try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
 }
+
+test "and" {
+    var cpu = Cpu();
+
+    // rd <- rs1 & rs2, pc += 4
+    var pc: u32 = cpu.pc;
+    const rd: u32 = 12;
+    const rs1: u32 = 13;
+    const rs2: u32 = 14;
+    cpu.xreg[rs1] = 0xff00ff00;
+    cpu.xreg[rs2] = 0xff00ffff;
+
+    _ = ArvissExecute(&cpu, (0 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b111 << 12) | encodeRd(rd) | @enumToInt(arviss.ArvissOpcode.opOP));
+
+    // rd <- rs1 & rs2
+    try testing.expectEqual(cpu.xreg[rs1] & cpu.xreg[rs2], cpu.xreg[rd]);
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+
+    // x0 <- 0
+    _ = ArvissExecute(&cpu, (0 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b111 << 12) | encodeRd(0) | @enumToInt(arviss.ArvissOpcode.opOP));
+    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+}
