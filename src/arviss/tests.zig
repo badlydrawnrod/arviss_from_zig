@@ -1594,3 +1594,16 @@ test "remu" { // 'M' extension.
     _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b111 << 12) | encodeRd(0) | @enumToInt(arviss.ArvissOpcode.opOP));
     try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
 }
+
+test "mret" {
+    var cpu = Cpu();
+
+    // pc <- mepc + 4
+    cpu.mepc = 0x4000;
+    cpu.pc = 0x8080;
+
+    _ = ArvissExecute(&cpu, (0b001100000010 << 20) | @enumToInt(arviss.ArvissOpcode.opSYSTEM));
+
+    // pc <- mepc + 4
+    try testing.expectEqual(cpu.mepc + 4, cpu.pc);
+}
