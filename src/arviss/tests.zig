@@ -2555,7 +2555,6 @@ test "fmv.w.x" { // 'F' extension.
 test "ecall" {
     // As Arviss currently supports a machine mode only CPU, executing an ECALL is essentially a request from the CPU to Arviss
     // itself, so we don't do anything to update the program counter.
-
     var cpu = Cpu();
 
     // mepc <- pc
@@ -2571,4 +2570,16 @@ test "ecall" {
     const trap = arviss.ArvissResultAsTrap(result);
     try testing.expectEqual(arviss.ArvissTrapType.trENVIRONMENT_CALL_FROM_M_MODE, trap.mcause);
     try testing.expectEqual(asU32(0), trap.mtval);
+}
+
+test "mret" {
+    var cpu = Cpu();
+
+    // pc <- mepc, pc += 4
+    const mepc = cpu.mepc;
+
+    _ = ArvissExecute(&cpu, (0b001100000010 << 20) | opcodeAsU32(Opcode.opSYSTEM));
+
+    // pc <- mepc + 4
+    try testing.expectEqual(mepc + 4, cpu.pc);
 }
