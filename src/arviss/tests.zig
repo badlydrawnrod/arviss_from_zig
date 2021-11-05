@@ -1622,3 +1622,17 @@ test "traps set mepc" {
     // mepc <- pc
     try testing.expectEqual(saved_pc, cpu.mepc);
 }
+
+test "traps set mcause" {
+    var cpu = Cpu();
+
+    // mepc <- pc
+    cpu.pc = 0x8086;
+    cpu.mepc = 0;
+
+    // Take a breakpoint.
+    _ = ArvissExecute(&cpu, (0b000000000001 << 20) | @enumToInt(arviss.ArvissOpcode.opSYSTEM));
+
+    // mepc <- pc
+    try testing.expectEqual(@enumToInt(arviss.ArvissTrapType.trBREAKPOINT), cpu.mcause);
+}
