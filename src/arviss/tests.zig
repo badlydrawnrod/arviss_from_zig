@@ -256,6 +256,18 @@ inline fn asU16(n: anytype) u16 {
     }
 }
 
+inline fn sgn(n: f32) f32 {
+    return if (n < 0.0) -1.0 else 1.0;
+}
+
+inline fn fmin(a: f32, b: f32) f32 {
+    return if (a < b) a else b;
+}
+
+inline fn fmax(a: f32, b: f32) f32 {
+    return if (a > b) a else b;
+}
+
 var memory: Memory = .{ .mem = undefined };
 
 fn ArvissCpu(mem: *Memory) arviss.ArvissCpu {
@@ -2008,10 +2020,6 @@ test "fsqrt.s" { // 'F' extension.
     try testing.expectEqual(pc + 4, cpu.pc);
 }
 
-inline fn sgn(n: f32) f32 {
-    return if (n < 0.0) -1.0 else 1.0;
-}
-
 test "fsgnj.s" { // 'F' extension.
     var cpu = Cpu();
 
@@ -2113,6 +2121,48 @@ test "fsgnjx.s" { // 'F' extension.
     _ = ArvissExecute(&cpu, (0b0010000 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b010 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOPFP));
 
     // rd <- abs(rs1) * -1
+    try testing.expectEqual(expected, cpu.freg[rd]);
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+}
+
+test "fmin.s" { // 'F' extension.
+    var cpu = Cpu();
+
+    // rd <- min(rs1, rs2), pc += 4
+    var pc: u32 = cpu.pc;
+    const rd: u32 = 15;
+    const rs1: u32 = 13;
+    const rs2: u32 = 31;
+    cpu.freg[rs1] = 4567.0;
+    cpu.freg[rs2] = 89.10;
+    const expected = fmin(cpu.freg[rs1], cpu.freg[rs2]);
+
+    _ = ArvissExecute(&cpu, (0b0010100 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOPFP));
+
+    // rd <- min(rs1, rs2)
+    try testing.expectEqual(expected, cpu.freg[rd]);
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+}
+
+test "fmax.s" { // 'F' extension.
+    var cpu = Cpu();
+
+    // rd <- max(rs1, rs2), pc += 4
+    var pc: u32 = cpu.pc;
+    const rd: u32 = 15;
+    const rs1: u32 = 13;
+    const rs2: u32 = 31;
+    cpu.freg[rs1] = 4567.0;
+    cpu.freg[rs2] = 89.10;
+    const expected = fmax(cpu.freg[rs1], cpu.freg[rs2]);
+
+    _ = ArvissExecute(&cpu, (0b0010100 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b001 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOPFP));
+
+    // rd <- max(rs1, rs2)
     try testing.expectEqual(expected, cpu.freg[rd]);
 
     // pc <- pc + 4
