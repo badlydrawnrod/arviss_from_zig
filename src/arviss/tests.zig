@@ -85,19 +85,16 @@ const Memory = struct {
 };
 
 fn read8(token: arviss.BusToken, addr: u32, bus_code: *allowzero arviss.BusCode) callconv(.C) u8 {
-    // std.debug.print("Read8 {} from {}\n", .{ token, addr });
     const mem = @ptrCast(*Memory, token.t);
     return mem.read8(addr, bus_code);
 }
 
 fn read16(token: arviss.BusToken, addr: u32, bus_code: *allowzero arviss.BusCode) callconv(.C) u16 {
-    // std.debug.print("Read16 from {}\n", .{addr});
     const mem = @ptrCast(*Memory, token.t);
     return mem.read16(addr, bus_code);
 }
 
 fn read32(token: arviss.BusToken, addr: u32, bus_code: *allowzero arviss.BusCode) callconv(.C) u32 {
-    // std.debug.print("Read32 from {}\n", .{addr});
     const mem = @ptrCast(*Memory, token.t);
     return mem.read32(addr, bus_code);
 }
@@ -1770,6 +1767,38 @@ test "traps set mtval" {
     try testing.expectEqual(address, cpu.mtval);
 }
 
+test "ecall" {
+    // As Arviss currently supports a machine mode only CPU, executing an ECALL is essentially a request from the CPU to Arviss
+    // itself, so we don't do anything to update the program counter.
+    var cpu = Cpu();
+
+    // mepc <- pc
+    const pc = cpu.pc;
+
+    const result = ArvissExecute(&cpu, (0b000000000000 << 20) | opcodeAsU32(Opcode.opSYSTEM));
+
+    // mepc <- pc
+    try testing.expectEqual(pc, cpu.mepc);
+
+    // Executing an ECALL will always generate an environment call from machine mode as Arviss currently supports machine mode only.
+    try testing.expect(arviss.ArvissResultIsTrap(result));
+    const trap = arviss.ArvissResultAsTrap(result);
+    try testing.expectEqual(arviss.ArvissTrapType.trENVIRONMENT_CALL_FROM_M_MODE, trap.mcause);
+    try testing.expectEqual(asU32(0), trap.mtval);
+}
+
+test "mret" {
+    var cpu = Cpu();
+
+    // pc <- mepc, pc += 4
+    const mepc = cpu.mepc;
+
+    _ = ArvissExecute(&cpu, (0b001100000010 << 20) | opcodeAsU32(Opcode.opSYSTEM));
+
+    // pc <- mepc + 4
+    try testing.expectEqual(mepc + 4, cpu.pc);
+}
+
 test "flw" { // 'F' extension.
     var cpu = Cpu();
 
@@ -2550,36 +2579,4 @@ test "fmv.w.x" { // 'F' extension.
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
-}
-
-test "ecall" {
-    // As Arviss currently supports a machine mode only CPU, executing an ECALL is essentially a request from the CPU to Arviss
-    // itself, so we don't do anything to update the program counter.
-    var cpu = Cpu();
-
-    // mepc <- pc
-    const pc = cpu.pc;
-
-    const result = ArvissExecute(&cpu, (0b000000000000 << 20) | opcodeAsU32(Opcode.opSYSTEM));
-
-    // mepc <- pc
-    try testing.expectEqual(pc, cpu.mepc);
-
-    // Executing an ECALL will always generate an environment call from machine mode as Arviss currently supports machine mode only.
-    try testing.expect(arviss.ArvissResultIsTrap(result));
-    const trap = arviss.ArvissResultAsTrap(result);
-    try testing.expectEqual(arviss.ArvissTrapType.trENVIRONMENT_CALL_FROM_M_MODE, trap.mcause);
-    try testing.expectEqual(asU32(0), trap.mtval);
-}
-
-test "mret" {
-    var cpu = Cpu();
-
-    // pc <- mepc, pc += 4
-    const mepc = cpu.mepc;
-
-    _ = ArvissExecute(&cpu, (0b001100000010 << 20) | opcodeAsU32(Opcode.opSYSTEM));
-
-    // pc <- mepc + 4
-    try testing.expectEqual(mepc + 4, cpu.pc);
 }
