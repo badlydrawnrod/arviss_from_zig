@@ -1782,7 +1782,6 @@ test "flw" { // 'F' extension.
     try testing.expectEqual(pc + 4, cpu.pc);
 }
 
-
 test "fsw" { // 'F' extension.
     var cpu = Cpu();
 
@@ -1895,6 +1894,94 @@ test "fnmadd.s" { // 'F' extension.
     _ = ArvissExecute(&cpu, encodeRs3(rs3) | (0b00 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | encodeRm(rm) | encodeRd(rd) | opcodeAsU32(Opcode.opNMADD));
 
     // rd <- (rs1 * rs2) - rs3
+    try testing.expectEqual(expected, cpu.freg[rd]);
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+}
+
+test "fadd.s" { // 'F' extension.
+    var cpu = Cpu();
+
+    // rd <- rs1 + rs2, pc += 4
+    var pc: u32 = cpu.pc;
+    const rd: u32 = 15;
+    const rs1: u32 = 4;
+    const rs2: u32 = 7;
+    const rm: u32 = @enumToInt(arviss.ArvissRoundingMode.rmDYN);
+    cpu.freg[rs1] = 1024.0;
+    cpu.freg[rs2] = 512.0;
+    const expected = cpu.freg[rs1] + cpu.freg[rs2];
+
+    _ = ArvissExecute(&cpu, (0b0000000 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | encodeRm(rm) | encodeRd(rd) | opcodeAsU32(Opcode.opOPFP));
+
+    // rd <- rs1 + rs2
+    try testing.expectEqual(expected, cpu.freg[rd]);
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+}
+
+test "fsub.s" { // 'F' extension.
+    var cpu = Cpu();
+
+    // rd <- rs1 - rs2, pc += 4
+    var pc: u32 = cpu.pc;
+    const rd: u32 = 15;
+    const rs1: u32 = 14;
+    const rs2: u32 = 17;
+    const rm: u32 = @enumToInt(arviss.ArvissRoundingMode.rmDYN);
+    cpu.freg[rs1] = 16384.0;
+    cpu.freg[rs2] = 8192.0;
+    const expected = cpu.freg[rs1] - cpu.freg[rs2];
+
+    _ = ArvissExecute(&cpu, (0b0000100 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | encodeRm(rm) | encodeRd(rd) | opcodeAsU32(Opcode.opOPFP));
+
+    // rd <- rs1 + rs2
+    try testing.expectEqual(expected, cpu.freg[rd]);
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+}
+
+test "fmul.s" { // 'F' extension.
+    var cpu = Cpu();
+
+    // rd <- rs1 * rs2, pc += 4
+    var pc: u32 = cpu.pc;
+    const rd: u32 = 15;
+    const rs1: u32 = 3;
+    const rs2: u32 = 7;
+    const rm: u32 = @enumToInt(arviss.ArvissRoundingMode.rmDYN);
+    cpu.freg[rs1] = 2560.0;
+    cpu.freg[rs2] = -1440.0;
+    const expected = cpu.freg[rs1] * cpu.freg[rs2];
+
+    _ = ArvissExecute(&cpu, (0b0001000 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | encodeRm(rm) | encodeRd(rd) | opcodeAsU32(Opcode.opOPFP));
+
+    // rd <- rs1 * rs2
+    try testing.expectEqual(expected, cpu.freg[rd]);
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+}
+
+test "fdiv.s" { // 'F' extension.
+    var cpu = Cpu();
+
+    // rd <- rs1 / rs2, pc += 4
+    var pc: u32 = cpu.pc;
+    const rd: u32 = 12;
+    const rs1: u32 = 13;
+    const rs2: u32 = 6;
+    const rm: u32 = @enumToInt(arviss.ArvissRoundingMode.rmDYN);
+    cpu.freg[rs1] = -32768.0;
+    cpu.freg[rs2] = 1024.0;
+    const expected = cpu.freg[rs1] / cpu.freg[rs2];
+
+    _ = ArvissExecute(&cpu, (0b0001100 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | encodeRm(rm) | encodeRd(rd) | opcodeAsU32(Opcode.opOPFP));
+
+    // rd <- rs1 / rs2
     try testing.expectEqual(expected, cpu.freg[rd]);
 
     // pc <- pc + 4
