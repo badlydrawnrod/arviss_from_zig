@@ -1987,3 +1987,23 @@ test "fdiv.s" { // 'F' extension.
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 }
+
+test "fsqrt.s" { // 'F' extension.
+    var cpu = Cpu();
+
+    // rd <- sqrt(rs1), pc += 4
+    var pc: u32 = cpu.pc;
+    const rd: u32 = 5;
+    const rs1: u32 = 3;
+    const rm: u32 = @enumToInt(arviss.ArvissRoundingMode.rmDYN);
+    cpu.freg[rs1] = 65536.0;
+    const expected = @sqrt(cpu.freg[rs1]);
+
+    _ = ArvissExecute(&cpu, (0b0101100 << 25) | encodeRs2(0) | encodeRs1(rs1) | encodeRm(rm) | encodeRd(rd) | opcodeAsU32(Opcode.opOPFP));
+
+    // rd <- sqrt(rs1)
+    try testing.expectEqual(expected, cpu.freg[rd]);
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+}
