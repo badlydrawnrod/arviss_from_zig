@@ -129,14 +129,6 @@ inline fn encodeRd(n: u32) u32 {
     return n << 7;
 }
 
-// inline fn encodeJ(n: u32) u32 {
-//     return ((n & 0x100000) << 11) // imm[20]    -> j[31]
-//     | ((n & 0x7fe) << 20) // imm[10:1]  -> j[30:21]
-//     | ((n & 0x800) << 9) // imm[11]    -> j[20]
-//     | (n & 0x000ff000) // imm[19:12] -> j[19:12]
-//     ;
-// }
-
 inline fn encodeJ(n: anytype) u32 {
     switch (@TypeOf(n)) {
         u32 => {
@@ -147,7 +139,7 @@ inline fn encodeJ(n: anytype) u32 {
             ;
         },
         else => {
-            @compileError("Unable to encode" ++ @typeName(@TypeOf(n)) ++ " to J");
+            return encodeJ(asU32(n));
         },
     }
 }
@@ -160,17 +152,31 @@ inline fn encodeB(n: u32) u32 {
     ;
 }
 
-inline fn encodeS(n: u32) u32 {
-    return ((n & 0xfe0) << 20) // imm[11:5] -> s[31:25]
-    | ((n & 0x1f) << 7) // imm[4:0]  -> s[11:7]
-    ;
+inline fn encodeS(n: anytype) u32 {
+    switch (@TypeOf(n)) {
+        u32 => {
+            return ((n & 0xfe0) << 20) // imm[11:5] -> s[31:25]
+            | ((n & 0x1f) << 7) // imm[4:0]  -> s[11:7]
+            ;
+        },
+        else => {
+            return encodeS(asU32(n));
+        },
+    }
 }
 
-inline fn encodeI(n: u32) u32 {
-    return (n & 0xfff) << 20; // imm[11:0] -> s[31:20]
+inline fn encodeI(n: anytype) u32 {
+    switch (@TypeOf(n)) {
+        u32 => {
+            return (n & 0xfff) << 20; // imm[11:0] -> s[31:20]
+        },
+        else => {
+            return encodeI(asU32(n));
+        },
+    }
 }
 
-inline fn u32FromOpcode(comptime opcode: Opcode) u32 {
+inline fn opcodeAsU32(comptime opcode: Opcode) u32 {
     return @enumToInt(opcode);
 }
 
@@ -185,8 +191,11 @@ inline fn asU32(n: anytype) u32 {
         i32 => {
             return @bitCast(u32, n);
         },
+        u64 => {
+            return @intCast(u32, n);
+        },
         else => {
-            @compileError("Unable to convert" ++ @typeName(@TypeOf(n)) ++ " to u32");
+            @compileError("Unable to convert " ++ @typeName(@TypeOf(n)) ++ " to u32");
         },
     }
 }
@@ -202,8 +211,39 @@ inline fn asI32(n: anytype) i32 {
         u32 => {
             return @bitCast(i32, n);
         },
+        i64 => {
+            return @intCast(i32, n);
+        },
         else => {
-            @compileError("Unable to convert" ++ @typeName(@TypeOf(n)) ++ " to i32");
+            @compileError("Unable to convert " ++ @typeName(@TypeOf(n)) ++ " to i32");
+        },
+    }
+}
+
+inline fn asU8(n: anytype) u8 {
+    switch (@TypeOf(n)) {
+        comptime_int => {
+            return @intCast(u8, n);
+        },
+        u32 => {
+            return @intCast(u8, n);
+        },
+        else => {
+            @compileError("Unable to convert " ++ @typeName(@TypeOf(n)) ++ " to u8");
+        },
+    }
+}
+
+inline fn asU16(n: anytype) u16 {
+    switch (@TypeOf(n)) {
+        comptime_int => {
+            return @intCast(u16, n);
+        },
+        u32 => {
+            return @intCast(u16, n);
+        },
+        else => {
+            @compileError("Unable to convert" ++ @typeName(@TypeOf(n)) ++ " to u16");
         },
     }
 }
@@ -241,7 +281,7 @@ test "lui" {
         const rd: u32 = 3;
         const pc: u32 = cpu.pc;
 
-        _ = ArvissExecute(&cpu, asU32(imm_u << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opLUI));
+        _ = ArvissExecute(&cpu, asU32(imm_u << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opLUI));
 
         // rd <- imm_u
         try testing.expectEqual(imm_u, asI32(cpu.xreg[rd]) >> 12);
@@ -258,7 +298,7 @@ test "lui leaves x0 as zero" {
     const rd: u32 = 0;
     const pc: u32 = cpu.pc;
 
-    _ = ArvissExecute(&cpu, asU32(imm_u << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opLUI));
+    _ = ArvissExecute(&cpu, asU32(imm_u << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opLUI));
 
     // x0 <- 0
     try testing.expectEqual(asU32(0), cpu.xreg[0]);
@@ -277,7 +317,7 @@ test "auipc" {
         const rd: u32 = 9;
         const pc: u32 = cpu.pc;
 
-        _ = ArvissExecute(&cpu, asU32(imm_u << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opAUIPC));
+        _ = ArvissExecute(&cpu, asU32(imm_u << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opAUIPC));
 
         // rd <- pc + imm_u
         try testing.expectEqual(pc +% asU32(imm_u << 12), cpu.xreg[rd]);
@@ -294,7 +334,7 @@ test "auipc leaves x0 as zero" {
     const rd: u32 = 0;
     const pc: u32 = cpu.pc;
 
-    _ = ArvissExecute(&cpu, asU32(imm_u << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opAUIPC));
+    _ = ArvissExecute(&cpu, asU32(imm_u << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opAUIPC));
 
     // x0 <- 0
     try testing.expectEqual(asU32(0), cpu.xreg[0]);
@@ -313,13 +353,13 @@ test "jal" {
         const rd: u32 = 3;
         const pc: u32 = cpu.pc;
 
-        _ = ArvissExecute(&cpu, encodeJ(@bitCast(u32, imm_j)) | encodeRd(rd) | u32FromOpcode(Opcode.opJAL));
+        _ = ArvissExecute(&cpu, encodeJ(imm_j) | encodeRd(rd) | opcodeAsU32(Opcode.opJAL));
 
         // rd <- pc + 4
         try testing.expectEqual(pc + 4, cpu.xreg[rd]);
 
         // pc <- pc + imm_j
-        try testing.expectEqual(@bitCast(u32, @bitCast(i32, pc) + value), cpu.pc);
+        try testing.expectEqual(asU32(asI32(pc) + value), cpu.pc);
     }
 }
 
@@ -331,13 +371,13 @@ test "jal leaves x0 as zero" {
     const rd: u32 = 0;
     const pc: u32 = cpu.pc;
 
-    _ = ArvissExecute(&cpu, encodeJ(@bitCast(u32, imm_j)) | encodeRd(rd) | u32FromOpcode(Opcode.opJAL));
+    _ = ArvissExecute(&cpu, encodeJ(imm_j) | encodeRd(rd) | opcodeAsU32(Opcode.opJAL));
 
     // x0 <- 0
-    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+    try testing.expectEqual(asU32(0), cpu.xreg[0]);
 
     // pc <- pc + imm_j
-    try testing.expectEqual(@bitCast(u32, @bitCast(i32, pc) + value), cpu.pc);
+    try testing.expectEqual(asU32(asI32(pc) + value), cpu.pc);
 }
 
 test "jalr" {
@@ -355,13 +395,13 @@ test "jalr" {
         const rs1_before = 12345;
         cpu.xreg[rs1] = rs1_before;
 
-        _ = ArvissExecute(&cpu, encodeI(@bitCast(u32, imm_i)) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opJALR));
+        _ = ArvissExecute(&cpu, encodeI(imm_i) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opJALR));
 
         // rd <- pc + 4
         try testing.expectEqual(pc + 4, cpu.xreg[rd]);
 
         // pc <- (rs1 + imm_i) & ~1
-        try testing.expectEqual(@bitCast(u32, (rs1_before + imm_i)) & 0xfffffffe, cpu.pc);
+        try testing.expectEqual(asU32(rs1_before + imm_i) & 0xfffffffe, cpu.pc);
     }
 }
 
@@ -378,13 +418,13 @@ test "jalr leaves x0 as zero" {
     const rs1_before = 12345;
     cpu.xreg[rs1] = rs1_before;
 
-    _ = ArvissExecute(&cpu, encodeI(@bitCast(u32, imm_i)) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opJALR));
+    _ = ArvissExecute(&cpu, encodeI(imm_i) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opJALR));
 
     // x0 <- 0
-    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+    try testing.expectEqual(asU32(0), cpu.xreg[0]);
 
     // pc <- (rs1 + imm_i) & ~1
-    try testing.expectEqual(@bitCast(u32, (rs1_before + imm_i)) & 0xfffffffe, cpu.pc);
+    try testing.expectEqual(asU32(rs1_before + imm_i) & 0xfffffffe, cpu.pc);
 }
 
 test "beq" {
@@ -400,7 +440,7 @@ test "beq" {
     cpu.xreg[rs1] = 5678;
     cpu.xreg[rs2] = cpu.xreg[rs1];
 
-    _ = ArvissExecute(&cpu, encodeB(imm_b) | encodeRs2(rs2) | encodeRs1(rs1) | (0b000 << 12) | u32FromOpcode(Opcode.opBRANCH));
+    _ = ArvissExecute(&cpu, encodeB(imm_b) | encodeRs2(rs2) | encodeRs1(rs1) | (0b000 << 12) | opcodeAsU32(Opcode.opBRANCH));
 
     // pc <- pc + imm_b
     try testing.expectEqual(pc + imm_b, cpu.pc);
@@ -410,7 +450,7 @@ test "beq" {
     cpu.xreg[rs1] = 5678;
     cpu.xreg[rs2] = 8765;
 
-    _ = ArvissExecute(&cpu, encodeB(imm_b) | encodeRs2(rs2) | encodeRs1(rs1) | (0b000 << 12) | u32FromOpcode(Opcode.opBRANCH));
+    _ = ArvissExecute(&cpu, encodeB(imm_b) | encodeRs2(rs2) | encodeRs1(rs1) | (0b000 << 12) | opcodeAsU32(Opcode.opBRANCH));
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
@@ -429,7 +469,7 @@ test "bne" {
     cpu.xreg[rs1] = 5678;
     cpu.xreg[rs2] = 8765;
 
-    _ = ArvissExecute(&cpu, encodeB(imm_b) | encodeRs2(rs2) | encodeRs1(rs1) | (0b001 << 12) | u32FromOpcode(Opcode.opBRANCH));
+    _ = ArvissExecute(&cpu, encodeB(imm_b) | encodeRs2(rs2) | encodeRs1(rs1) | (0b001 << 12) | opcodeAsU32(Opcode.opBRANCH));
 
     // pc <- pc + imm_b
     try testing.expectEqual(pc + imm_b, cpu.pc);
@@ -439,7 +479,7 @@ test "bne" {
     cpu.xreg[rs1] = 5678;
     cpu.xreg[rs2] = cpu.xreg[rs1];
 
-    _ = ArvissExecute(&cpu, encodeB(imm_b) | encodeRs2(rs2) | encodeRs1(rs1) | (0b001 << 12) | u32FromOpcode(Opcode.opBRANCH));
+    _ = ArvissExecute(&cpu, encodeB(imm_b) | encodeRs2(rs2) | encodeRs1(rs1) | (0b001 << 12) | opcodeAsU32(Opcode.opBRANCH));
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
@@ -458,7 +498,7 @@ test "blt" {
     cpu.xreg[rs1] = 0xffffffff; // -1
     cpu.xreg[rs2] = 0;
 
-    _ = ArvissExecute(&cpu, encodeB(imm_b) | encodeRs2(rs2) | encodeRs1(rs1) | (0b100 << 12) | u32FromOpcode(Opcode.opBRANCH));
+    _ = ArvissExecute(&cpu, encodeB(imm_b) | encodeRs2(rs2) | encodeRs1(rs1) | (0b100 << 12) | opcodeAsU32(Opcode.opBRANCH));
 
     // pc <- pc + imm_b
     try testing.expectEqual(pc + imm_b, cpu.pc);
@@ -468,7 +508,7 @@ test "blt" {
     cpu.xreg[rs1] = 456;
     cpu.xreg[rs2] = 123;
 
-    _ = ArvissExecute(&cpu, encodeB(imm_b) | encodeRs2(rs2) | encodeRs1(rs1) | (0b100 << 12) | u32FromOpcode(Opcode.opBRANCH));
+    _ = ArvissExecute(&cpu, encodeB(imm_b) | encodeRs2(rs2) | encodeRs1(rs1) | (0b100 << 12) | opcodeAsU32(Opcode.opBRANCH));
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
@@ -487,7 +527,7 @@ test "bge" {
     cpu.xreg[rs1] = 0;
     cpu.xreg[rs2] = 0xffffffff; // -1
 
-    _ = ArvissExecute(&cpu, encodeB(imm_b) | encodeRs2(rs2) | encodeRs1(rs1) | (0b101 << 12) | u32FromOpcode(Opcode.opBRANCH));
+    _ = ArvissExecute(&cpu, encodeB(imm_b) | encodeRs2(rs2) | encodeRs1(rs1) | (0b101 << 12) | opcodeAsU32(Opcode.opBRANCH));
 
     // pc <- pc + imm_b
     try testing.expectEqual(pc + imm_b, cpu.pc);
@@ -497,7 +537,7 @@ test "bge" {
     cpu.xreg[rs1] = 0xffffffff; // -1
     cpu.xreg[rs2] = 0xffffffff; // -1
 
-    _ = ArvissExecute(&cpu, encodeB(imm_b) | encodeRs2(rs2) | encodeRs1(rs1) | (0b101 << 12) | u32FromOpcode(Opcode.opBRANCH));
+    _ = ArvissExecute(&cpu, encodeB(imm_b) | encodeRs2(rs2) | encodeRs1(rs1) | (0b101 << 12) | opcodeAsU32(Opcode.opBRANCH));
 
     // pc <- pc + imm_b
     try testing.expectEqual(pc + imm_b, cpu.pc);
@@ -507,7 +547,7 @@ test "bge" {
     cpu.xreg[rs1] = 0xffffffff; // -1
     cpu.xreg[rs2] = 0;
 
-    _ = ArvissExecute(&cpu, encodeB(imm_b) | encodeRs2(rs2) | encodeRs1(rs1) | (0b101 << 12) | u32FromOpcode(Opcode.opBRANCH));
+    _ = ArvissExecute(&cpu, encodeB(imm_b) | encodeRs2(rs2) | encodeRs1(rs1) | (0b101 << 12) | opcodeAsU32(Opcode.opBRANCH));
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
@@ -526,7 +566,7 @@ test "bltu" {
     cpu.xreg[rs1] = 0;
     cpu.xreg[rs2] = 0xffffffff;
 
-    _ = ArvissExecute(&cpu, encodeB(imm_b) | encodeRs2(rs2) | encodeRs1(rs1) | (0b110 << 12) | u32FromOpcode(Opcode.opBRANCH));
+    _ = ArvissExecute(&cpu, encodeB(imm_b) | encodeRs2(rs2) | encodeRs1(rs1) | (0b110 << 12) | opcodeAsU32(Opcode.opBRANCH));
 
     // pc <- pc + imm_b
     try testing.expectEqual(pc + imm_b, cpu.pc);
@@ -536,7 +576,7 @@ test "bltu" {
     cpu.xreg[rs1] = 0xffffffff;
     cpu.xreg[rs2] = 0;
 
-    _ = ArvissExecute(&cpu, encodeB(imm_b) | encodeRs2(rs2) | encodeRs1(rs1) | (0b110 << 12) | u32FromOpcode(Opcode.opBRANCH));
+    _ = ArvissExecute(&cpu, encodeB(imm_b) | encodeRs2(rs2) | encodeRs1(rs1) | (0b110 << 12) | opcodeAsU32(Opcode.opBRANCH));
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
@@ -555,7 +595,7 @@ test "bgeu" {
     cpu.xreg[rs1] = 0xffffffff;
     cpu.xreg[rs2] = 0;
 
-    _ = ArvissExecute(&cpu, encodeB(imm_b) | encodeRs2(rs2) | encodeRs1(rs1) | (0b111 << 12) | u32FromOpcode(Opcode.opBRANCH));
+    _ = ArvissExecute(&cpu, encodeB(imm_b) | encodeRs2(rs2) | encodeRs1(rs1) | (0b111 << 12) | opcodeAsU32(Opcode.opBRANCH));
 
     // pc <- pc + imm_b
     try testing.expectEqual(pc + imm_b, cpu.pc);
@@ -565,7 +605,7 @@ test "bgeu" {
     cpu.xreg[rs1] = 1;
     cpu.xreg[rs2] = 1;
 
-    _ = ArvissExecute(&cpu, encodeB(imm_b) | encodeRs2(rs2) | encodeRs1(rs1) | (0b111 << 12) | u32FromOpcode(Opcode.opBRANCH));
+    _ = ArvissExecute(&cpu, encodeB(imm_b) | encodeRs2(rs2) | encodeRs1(rs1) | (0b111 << 12) | opcodeAsU32(Opcode.opBRANCH));
 
     // pc <- pc + imm_b
     try testing.expectEqual(pc + imm_b, cpu.pc);
@@ -575,7 +615,7 @@ test "bgeu" {
     cpu.xreg[rs1] = 0;
     cpu.xreg[rs2] = 0xffffffff;
 
-    _ = ArvissExecute(&cpu, encodeB(imm_b) | encodeRs2(rs2) | encodeRs1(rs1) | (0b111 << 12) | u32FromOpcode(Opcode.opBRANCH));
+    _ = ArvissExecute(&cpu, encodeB(imm_b) | encodeRs2(rs2) | encodeRs1(rs1) | (0b111 << 12) | opcodeAsU32(Opcode.opBRANCH));
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
@@ -595,10 +635,10 @@ test "lb (load byte)" {
     // Sign extend when bit 7 is zero.
     memory.write8(cpu.xreg[rs1] + imm_i, 123, &cpu.busCode);
 
-    _ = ArvissExecute(&cpu, encodeI(imm_i) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opLOAD));
+    _ = ArvissExecute(&cpu, encodeI(imm_i) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opLOAD));
 
     // rd <- sx(m8(rs1 + imm_i))
-    try testing.expectEqual(@intCast(u32, 123), cpu.xreg[rd]);
+    try testing.expectEqual(asU32(123), cpu.xreg[rd]);
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
@@ -607,10 +647,10 @@ test "lb (load byte)" {
     pc = cpu.pc;
     memory.write8(cpu.xreg[rs1] + imm_i, 0xff, &cpu.busCode);
 
-    _ = ArvissExecute(&cpu, encodeI(imm_i) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opLOAD));
+    _ = ArvissExecute(&cpu, encodeI(imm_i) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opLOAD));
 
     // rd <- sx(m8(rs1 + imm_i))
-    try testing.expectEqual(@intCast(u32, 0xffffffff), cpu.xreg[rd]);
+    try testing.expectEqual(asU32(0xffffffff), cpu.xreg[rd]);
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
@@ -630,10 +670,10 @@ test "lh (load halfword)" {
     // Sign extend when bit 15 is zero.
     memory.write16(cpu.xreg[rs1] + imm_i, 0x7fff, &cpu.busCode);
 
-    _ = ArvissExecute(&cpu, encodeI(imm_i) | encodeRs1(rs1) | (0b001 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opLOAD));
+    _ = ArvissExecute(&cpu, encodeI(imm_i) | encodeRs1(rs1) | (0b001 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opLOAD));
 
     // rd <- sx(m16(rs1 + imm_i))
-    try testing.expectEqual(@intCast(u32, 0x7fff), cpu.xreg[rd]);
+    try testing.expectEqual(asU32(0x7fff), cpu.xreg[rd]);
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
@@ -642,10 +682,10 @@ test "lh (load halfword)" {
     pc = cpu.pc;
     memory.write16(cpu.xreg[rs1] + imm_i, 0xffff, &cpu.busCode);
 
-    _ = ArvissExecute(&cpu, encodeI(imm_i) | encodeRs1(rs1) | (0b001 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opLOAD));
+    _ = ArvissExecute(&cpu, encodeI(imm_i) | encodeRs1(rs1) | (0b001 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opLOAD));
 
     // rd <- sx(m16(rs1 + imm_i))
-    try testing.expectEqual(@intCast(u32, 0xffffffff), cpu.xreg[rd]);
+    try testing.expectEqual(asU32(0xffffffff), cpu.xreg[rd]);
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
@@ -665,10 +705,10 @@ test "lw (load word)" {
     // Sign extend when bit 31 is zero.
     memory.write32(cpu.xreg[rs1] + imm_i, 0x7fffffff, &cpu.busCode);
 
-    _ = ArvissExecute(&cpu, encodeI(imm_i) | encodeRs1(rs1) | (0b010 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opLOAD));
+    _ = ArvissExecute(&cpu, encodeI(imm_i) | encodeRs1(rs1) | (0b010 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opLOAD));
 
     // rd <- sx(m32(rs1 + imm_i))
-    try testing.expectEqual(@intCast(u32, 0x7fffffff), cpu.xreg[rd]);
+    try testing.expectEqual(asU32(0x7fffffff), cpu.xreg[rd]);
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
@@ -677,10 +717,10 @@ test "lw (load word)" {
     pc = cpu.pc;
     memory.write32(cpu.xreg[rs1] + imm_i, 0xffffffff, &cpu.busCode);
 
-    _ = ArvissExecute(&cpu, encodeI(imm_i) | encodeRs1(rs1) | (0b010 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opLOAD));
+    _ = ArvissExecute(&cpu, encodeI(imm_i) | encodeRs1(rs1) | (0b010 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opLOAD));
 
     // rd <- sx(m32(rs1 + imm_i))
-    try testing.expectEqual(@intCast(u32, 0xffffffff), cpu.xreg[rd]);
+    try testing.expectEqual(asU32(0xffffffff), cpu.xreg[rd]);
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
@@ -698,24 +738,24 @@ test "lbu (load byte unsigned)" {
     cpu.xreg[rs1] = rambase + ramsize / 2;
 
     // Zero extend when bit 7 is zero.
-    memory.write8(@intCast(u32, @intCast(i32, cpu.xreg[rs1]) + imm_i), 123, &cpu.busCode);
+    memory.write8(asU32(asI32(cpu.xreg[rs1]) + imm_i), 123, &cpu.busCode);
 
-    _ = ArvissExecute(&cpu, encodeI(@bitCast(u32, imm_i)) | encodeRs1(rs1) | (0b100 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opLOAD));
+    _ = ArvissExecute(&cpu, encodeI(imm_i) | encodeRs1(rs1) | (0b100 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opLOAD));
 
     // rd <- zx(m8(rs1 + imm_i))
-    try testing.expectEqual(@intCast(u32, 123), cpu.xreg[rd]);
+    try testing.expectEqual(asU32(123), cpu.xreg[rd]);
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 
     // Zero extend when bit 7 is one.
     pc = cpu.pc;
-    memory.write8(@intCast(u32, @intCast(i32, cpu.xreg[rs1]) + imm_i), 0xff, &cpu.busCode);
+    memory.write8(asU32(asI32(cpu.xreg[rs1]) + imm_i), 0xff, &cpu.busCode);
 
-    _ = ArvissExecute(&cpu, encodeI(@bitCast(u32, imm_i)) | encodeRs1(rs1) | (0b100 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opLOAD));
+    _ = ArvissExecute(&cpu, encodeI(imm_i) | encodeRs1(rs1) | (0b100 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opLOAD));
 
     // rd <- zx(m8(rs1 + imm_i))
-    try testing.expectEqual(@intCast(u32, 0xff), cpu.xreg[rd]);
+    try testing.expectEqual(asU32(0xff), cpu.xreg[rd]);
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
@@ -732,24 +772,24 @@ test "lhu (load halfword unsigned)" {
     cpu.xreg[rs1] = rambase + ramsize / 2;
 
     // Zero extend when bit 15 is zero.
-    memory.write16(@intCast(u32, @intCast(i32, cpu.xreg[rs1]) + imm_i), 0x7fff, &cpu.busCode);
+    memory.write16(asU32(asI32(cpu.xreg[rs1]) + imm_i), 0x7fff, &cpu.busCode);
 
-    _ = ArvissExecute(&cpu, encodeI(@bitCast(u32, imm_i)) | encodeRs1(rs1) | (0b101 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opLOAD));
+    _ = ArvissExecute(&cpu, encodeI(imm_i) | encodeRs1(rs1) | (0b101 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opLOAD));
 
     // rd <- zx(m16(rs1 + imm_i))
-    try testing.expectEqual(@intCast(u32, 0x7fff), cpu.xreg[rd]);
+    try testing.expectEqual(asU32(0x7fff), cpu.xreg[rd]);
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 
     // Zero extend when bit 15 is one.
     pc = cpu.pc;
-    memory.write16(@intCast(u32, @intCast(i32, cpu.xreg[rs1]) + imm_i), 0xffff, &cpu.busCode);
+    memory.write16(asU32(asI32(cpu.xreg[rs1]) + imm_i), 0xffff, &cpu.busCode);
 
-    _ = ArvissExecute(&cpu, encodeI(@bitCast(u32, imm_i)) | encodeRs1(rs1) | (0b101 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opLOAD));
+    _ = ArvissExecute(&cpu, encodeI(imm_i) | encodeRs1(rs1) | (0b101 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opLOAD));
 
     // rd <- zx(m16(rs1 + imm_i))
-    try testing.expectEqual(@intCast(u32, 0xffff), cpu.xreg[rd]);
+    try testing.expectEqual(asU32(0xffff), cpu.xreg[rd]);
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
@@ -764,34 +804,34 @@ test "loads don't affect x0" {
     const rs1: u32 = 13;
     cpu.xreg[rs1] = rambase;
     memory.write8(rambase, 0xff, &cpu.busCode);
-    _ = ArvissExecute(&cpu, encodeI(0) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(0) | u32FromOpcode(Opcode.opLOAD));
+    _ = ArvissExecute(&cpu, encodeI(0) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(0) | opcodeAsU32(Opcode.opLOAD));
 
     // x0 <- 0
-    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+    try testing.expectEqual(asU32(0), cpu.xreg[0]);
 
     // lh
-    _ = ArvissExecute(&cpu, encodeI(0) | encodeRs1(rs1) | (0b001 << 12) | encodeRd(0) | u32FromOpcode(Opcode.opLOAD));
+    _ = ArvissExecute(&cpu, encodeI(0) | encodeRs1(rs1) | (0b001 << 12) | encodeRd(0) | opcodeAsU32(Opcode.opLOAD));
 
     // x0 <- 0
-    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+    try testing.expectEqual(asU32(0), cpu.xreg[0]);
 
     // lw
-    _ = ArvissExecute(&cpu, encodeI(0) | encodeRs1(rs1) | (0b010 << 12) | encodeRd(0) | u32FromOpcode(Opcode.opLOAD));
+    _ = ArvissExecute(&cpu, encodeI(0) | encodeRs1(rs1) | (0b010 << 12) | encodeRd(0) | opcodeAsU32(Opcode.opLOAD));
 
     // x0 <- 0
-    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+    try testing.expectEqual(asU32(0), cpu.xreg[0]);
 
     // lbu
-    _ = ArvissExecute(&cpu, encodeI(0) | encodeRs1(rs1) | (0b100 << 12) | encodeRd(0) | u32FromOpcode(Opcode.opLOAD));
+    _ = ArvissExecute(&cpu, encodeI(0) | encodeRs1(rs1) | (0b100 << 12) | encodeRd(0) | opcodeAsU32(Opcode.opLOAD));
 
     // x0 <- 0
-    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+    try testing.expectEqual(asU32(0), cpu.xreg[0]);
 
     // lhu
-    _ = ArvissExecute(&cpu, encodeI(0) | encodeRs1(rs1) | (0b101 << 12) | encodeRd(0) | u32FromOpcode(Opcode.opLOAD));
+    _ = ArvissExecute(&cpu, encodeI(0) | encodeRs1(rs1) | (0b101 << 12) | encodeRd(0) | opcodeAsU32(Opcode.opLOAD));
 
     // x0 <- 0
-    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+    try testing.expectEqual(asU32(0), cpu.xreg[0]);
 }
 
 test "sb (store byte)" {
@@ -804,12 +844,12 @@ test "sb (store byte)" {
     const rs2: u32 = 3;
     cpu.xreg[rs1] = rambase + ramsize / 2;
 
-    _ = ArvissExecute(&cpu, encodeS(@bitCast(u32, imm_s)) | encodeRs2(rs2) | encodeRs1(rs1) | (0b000 << 12) | u32FromOpcode(Opcode.opSTORE));
+    _ = ArvissExecute(&cpu, encodeS(imm_s) | encodeRs2(rs2) | encodeRs1(rs1) | (0b000 << 12) | opcodeAsU32(Opcode.opSTORE));
 
     // m8(rs1 + imm_s) <- rs2[7:0]
-    const byte_result = memory.read8(@bitCast(u32, @bitCast(i32, cpu.xreg[rs1]) + imm_s), &cpu.busCode);
+    const byte_result = memory.read8(asU32(asI32(cpu.xreg[rs1]) + imm_s), &cpu.busCode);
     try testing.expectEqual(arviss.BusCode.bcOK, cpu.busCode);
-    try testing.expectEqual(byte_result, @intCast(u8, cpu.xreg[rs2] & 0xff));
+    try testing.expectEqual(byte_result, asU8(cpu.xreg[rs2] & 0xff));
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
@@ -825,12 +865,12 @@ test "sh (store halfword)" {
     const rs2: u32 = 29;
     cpu.xreg[rs1] = rambase + ramsize / 2;
 
-    _ = ArvissExecute(&cpu, encodeS(@bitCast(u32, imm_s)) | encodeRs2(rs2) | encodeRs1(rs1) | (0b001 << 12) | u32FromOpcode(Opcode.opSTORE));
+    _ = ArvissExecute(&cpu, encodeS(imm_s) | encodeRs2(rs2) | encodeRs1(rs1) | (0b001 << 12) | opcodeAsU32(Opcode.opSTORE));
 
     // m16(rs1 + imm_s) <- rs2[15:0]
-    const halfword_result = memory.read16(@bitCast(u32, @bitCast(i32, cpu.xreg[rs1]) + imm_s), &cpu.busCode);
+    const halfword_result = memory.read16(asU32(asI32(cpu.xreg[rs1]) + imm_s), &cpu.busCode);
     try testing.expectEqual(arviss.BusCode.bcOK, cpu.busCode);
-    try testing.expectEqual(halfword_result, @intCast(u16, cpu.xreg[rs2] & 0xffff));
+    try testing.expectEqual(halfword_result, asU16(cpu.xreg[rs2] & 0xffff));
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
@@ -846,10 +886,10 @@ test "sw (store word)" {
     const rs2: u32 = 29;
     cpu.xreg[rs1] = rambase + ramsize / 2;
 
-    _ = ArvissExecute(&cpu, encodeS(@bitCast(u32, imm_s)) | encodeRs2(rs2) | encodeRs1(rs1) | (0b010 << 12) | u32FromOpcode(Opcode.opSTORE));
+    _ = ArvissExecute(&cpu, encodeS(imm_s) | encodeRs2(rs2) | encodeRs1(rs1) | (0b010 << 12) | opcodeAsU32(Opcode.opSTORE));
 
     // m32(rs1 + imm_s) <- rs2[31:0]
-    const word_result = memory.read32(@bitCast(u32, @bitCast(i32, cpu.xreg[rs1]) + imm_s), &cpu.busCode);
+    const word_result = memory.read32(asU32(asI32(cpu.xreg[rs1]) + imm_s), &cpu.busCode);
     try testing.expectEqual(arviss.BusCode.bcOK, cpu.busCode);
     try testing.expectEqual(word_result, cpu.xreg[rs2]);
 
@@ -868,10 +908,10 @@ test "addi (add immediate)" {
     cpu.xreg[rs1] = 128;
 
     // Add immediate.
-    _ = ArvissExecute(&cpu, encodeI(@bitCast(u32, imm_i)) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opOPIMM));
+    _ = ArvissExecute(&cpu, encodeI(imm_i) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOPIMM));
 
     // rd <- rs1 + imm_i
-    try testing.expectEqual(@bitCast(u32, @bitCast(i32, cpu.xreg[rs1]) + imm_i), cpu.xreg[rd]);
+    try testing.expectEqual(asU32(asI32(cpu.xreg[rs1]) + imm_i), cpu.xreg[rd]);
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
@@ -879,10 +919,10 @@ test "addi (add immediate)" {
     // Add negative number.
     pc = cpu.pc;
     imm_i = -123;
-    _ = ArvissExecute(&cpu, encodeI(@bitCast(u32, imm_i)) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opOPIMM));
+    _ = ArvissExecute(&cpu, encodeI(imm_i) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOPIMM));
 
     // rd <- rs1 + imm_i
-    try testing.expectEqual(@bitCast(u32, @bitCast(i32, cpu.xreg[rs1]) + imm_i), cpu.xreg[rd]);
+    try testing.expectEqual(asU32(asI32(cpu.xreg[rs1]) + imm_i), cpu.xreg[rd]);
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
@@ -900,10 +940,10 @@ test "slti (set less than immediate)" {
 
     // Condition true.
     cpu.xreg[rs1] = 0xffffffff; // (-1)
-    _ = ArvissExecute(&cpu, encodeI(@bitCast(u32, imm_i)) | encodeRs1(rs1) | (0b010 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opOPIMM));
+    _ = ArvissExecute(&cpu, encodeI(imm_i) | encodeRs1(rs1) | (0b010 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOPIMM));
 
     // rd <- (rs1 < imm_i) ? 1 : 0
-    try testing.expectEqual(@intCast(u32, 1), cpu.xreg[rd]);
+    try testing.expectEqual(asU32(1), cpu.xreg[rd]);
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
@@ -911,10 +951,10 @@ test "slti (set less than immediate)" {
     // Condition false.
     pc = cpu.pc;
     cpu.xreg[rs1] = 123;
-    _ = ArvissExecute(&cpu, encodeI(@bitCast(u32, imm_i)) | encodeRs1(rs1) | (0b010 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opOPIMM));
+    _ = ArvissExecute(&cpu, encodeI(imm_i) | encodeRs1(rs1) | (0b010 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOPIMM));
 
     // rd <- (rs1 < imm_i) ? 1 : 0
-    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[rd]);
+    try testing.expectEqual(asU32(0), cpu.xreg[rd]);
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
@@ -932,10 +972,10 @@ test "sltiu (set less than immediate unsigned)" {
 
     // Condition true.
     cpu.xreg[rs1] = 0;
-    _ = ArvissExecute(&cpu, encodeI(@bitCast(u32, imm_i)) | encodeRs1(rs1) | (0b011 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opOPIMM));
+    _ = ArvissExecute(&cpu, encodeI(imm_i) | encodeRs1(rs1) | (0b011 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOPIMM));
 
     // rd <- (rs1 < imm_i) ? 1 : 0
-    try testing.expectEqual(@intCast(u32, 1), cpu.xreg[rd]);
+    try testing.expectEqual(asU32(1), cpu.xreg[rd]);
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
@@ -943,10 +983,10 @@ test "sltiu (set less than immediate unsigned)" {
     // Condition false.
     pc = cpu.pc;
     cpu.xreg[rs1] = 0xffffffff;
-    _ = ArvissExecute(&cpu, encodeI(@bitCast(u32, imm_i)) | encodeRs1(rs1) | (0b010 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opOPIMM));
+    _ = ArvissExecute(&cpu, encodeI(imm_i) | encodeRs1(rs1) | (0b010 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOPIMM));
 
     // rd <- (rs1 < imm_i) ? 1 : 0
-    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[rd]);
+    try testing.expectEqual(asU32(0), cpu.xreg[rd]);
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
@@ -962,10 +1002,10 @@ test "xori (xor immediate)" {
     var imm_i: i32 = -1;
     cpu.xreg[rs1] = 123456;
 
-    _ = ArvissExecute(&cpu, encodeI(@bitCast(u32, imm_i)) | encodeRs1(rs1) | (0b100 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opOPIMM));
+    _ = ArvissExecute(&cpu, encodeI(imm_i) | encodeRs1(rs1) | (0b100 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOPIMM));
 
     // rd <- rs1 ^ imm_i
-    try testing.expectEqual(cpu.xreg[rs1] ^ @bitCast(u32, imm_i), cpu.xreg[rd]);
+    try testing.expectEqual(cpu.xreg[rs1] ^ asU32(imm_i), cpu.xreg[rd]);
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
@@ -981,10 +1021,10 @@ test "ori (or immediate)" {
     var imm_i: i32 = 0x00ff;
     cpu.xreg[rs1] = 0xff00;
 
-    _ = ArvissExecute(&cpu, encodeI(@bitCast(u32, imm_i)) | encodeRs1(rs1) | (0b110 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opOPIMM));
+    _ = ArvissExecute(&cpu, encodeI(imm_i) | encodeRs1(rs1) | (0b110 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOPIMM));
 
     // rd <- rs1 | imm_i
-    try testing.expectEqual(cpu.xreg[rs1] | @bitCast(u32, imm_i), cpu.xreg[rd]);
+    try testing.expectEqual(cpu.xreg[rs1] | asU32(imm_i), cpu.xreg[rd]);
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
@@ -1000,10 +1040,10 @@ test "andi (and immediate)" {
     var imm_i: i32 = 0xfff0;
     cpu.xreg[rs1] = 0xffff;
 
-    _ = ArvissExecute(&cpu, encodeI(@bitCast(u32, imm_i)) | encodeRs1(rs1) | (0b111 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opOPIMM));
+    _ = ArvissExecute(&cpu, encodeI(imm_i) | encodeRs1(rs1) | (0b111 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOPIMM));
 
     // rd <- rs1 & imm_i
-    try testing.expectEqual(cpu.xreg[rs1] & @bitCast(u32, imm_i), cpu.xreg[rd]);
+    try testing.expectEqual(cpu.xreg[rs1] & asU32(imm_i), cpu.xreg[rd]);
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
@@ -1019,7 +1059,7 @@ test "slli (shift left logical immediate)" {
     const shamt: u32 = 4;
     cpu.xreg[rs1] = 0x0010;
 
-    _ = ArvissExecute(&cpu, encodeI(shamt) | encodeRs1(rs1) | (0b001 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opOPIMM));
+    _ = ArvissExecute(&cpu, encodeI(shamt) | encodeRs1(rs1) | (0b001 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOPIMM));
 
     // rd <- rs1 << shamt_i
     try testing.expectEqual(cpu.xreg[rs1] << shamt, cpu.xreg[rd]);
@@ -1038,7 +1078,7 @@ test "srli (shift right logical immediate)" {
     const shamt: u32 = 4;
     cpu.xreg[rs1] = 0x1000;
 
-    _ = ArvissExecute(&cpu, encodeI(shamt) | encodeRs1(rs1) | (0b101 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opOPIMM));
+    _ = ArvissExecute(&cpu, encodeI(shamt) | encodeRs1(rs1) | (0b101 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOPIMM));
 
     // rd <- rs1 >> shamt_i
     try testing.expectEqual(cpu.xreg[rs1] >> shamt, cpu.xreg[rd]);
@@ -1057,10 +1097,10 @@ test "srai (shift right arithmetic immediate)" {
     const shamt: u32 = 3;
     cpu.xreg[rs1] = 0x80000000;
 
-    _ = ArvissExecute(&cpu, (1 << 30) | encodeI(shamt) | encodeRs1(rs1) | (0b101 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opOPIMM));
+    _ = ArvissExecute(&cpu, (1 << 30) | encodeI(shamt) | encodeRs1(rs1) | (0b101 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOPIMM));
 
     // rd <- sx(rs1) >> shamt_i
-    try testing.expectEqual(@bitCast(u32, @bitCast(i32, cpu.xreg[rs1]) >> shamt), cpu.xreg[rd]);
+    try testing.expectEqual(asU32(asI32(cpu.xreg[rs1]) >> shamt), cpu.xreg[rd]);
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
@@ -1070,61 +1110,61 @@ test "immediate ops don't affect x0" {
     var cpu = Cpu();
 
     // addi
-    _ = ArvissExecute(&cpu, encodeI(123) | encodeRs1(1) | (0b000 << 12) | encodeRd(0) | u32FromOpcode(Opcode.opOPIMM));
+    _ = ArvissExecute(&cpu, encodeI(123) | encodeRs1(1) | (0b000 << 12) | encodeRd(0) | opcodeAsU32(Opcode.opOPIMM));
 
     // x0 <- 0
-    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+    try testing.expectEqual(asU32(0), cpu.xreg[0]);
 
     // slti
-    _ = ArvissExecute(&cpu, encodeI(123) | encodeRs1(1) | (0b010 << 12) | encodeRd(0) | u32FromOpcode(Opcode.opOPIMM));
+    _ = ArvissExecute(&cpu, encodeI(123) | encodeRs1(1) | (0b010 << 12) | encodeRd(0) | opcodeAsU32(Opcode.opOPIMM));
 
     // x0 <- 0
-    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+    try testing.expectEqual(asU32(0), cpu.xreg[0]);
 
     // sltiu
-    _ = ArvissExecute(&cpu, encodeI(123) | encodeRs1(1) | (0b011 << 12) | encodeRd(0) | u32FromOpcode(Opcode.opOPIMM));
+    _ = ArvissExecute(&cpu, encodeI(123) | encodeRs1(1) | (0b011 << 12) | encodeRd(0) | opcodeAsU32(Opcode.opOPIMM));
 
     // x0 <- 0
-    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+    try testing.expectEqual(asU32(0), cpu.xreg[0]);
 
     // xori
-    _ = ArvissExecute(&cpu, encodeI(123) | encodeRs1(1) | (0b100 << 12) | encodeRd(0) | u32FromOpcode(Opcode.opOPIMM));
+    _ = ArvissExecute(&cpu, encodeI(123) | encodeRs1(1) | (0b100 << 12) | encodeRd(0) | opcodeAsU32(Opcode.opOPIMM));
 
     // x0 <- 0
-    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+    try testing.expectEqual(asU32(0), cpu.xreg[0]);
 
     // ori
-    _ = ArvissExecute(&cpu, encodeI(123) | encodeRs1(1) | (0b110 << 12) | encodeRd(0) | u32FromOpcode(Opcode.opOPIMM));
+    _ = ArvissExecute(&cpu, encodeI(123) | encodeRs1(1) | (0b110 << 12) | encodeRd(0) | opcodeAsU32(Opcode.opOPIMM));
 
     // x0 <- 0
-    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+    try testing.expectEqual(asU32(0), cpu.xreg[0]);
 
     // andi
-    _ = ArvissExecute(&cpu, encodeI(123) | encodeRs1(1) | (0b111 << 12) | encodeRd(0) | u32FromOpcode(Opcode.opOPIMM));
+    _ = ArvissExecute(&cpu, encodeI(123) | encodeRs1(1) | (0b111 << 12) | encodeRd(0) | opcodeAsU32(Opcode.opOPIMM));
 
     // x0 <- 0
-    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+    try testing.expectEqual(asU32(0), cpu.xreg[0]);
 
     // slli
     cpu.xreg[1] = 0xffffffff;
-    _ = ArvissExecute(&cpu, encodeI(0xff) | encodeRs1(1) | (0b001 << 12) | encodeRd(0) | u32FromOpcode(Opcode.opOPIMM));
+    _ = ArvissExecute(&cpu, encodeI(0xff) | encodeRs1(1) | (0b001 << 12) | encodeRd(0) | opcodeAsU32(Opcode.opOPIMM));
 
     // x0 <- 0
-    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+    try testing.expectEqual(asU32(0), cpu.xreg[0]);
 
     // srli
     cpu.xreg[1] = 0xffffffff;
-    _ = ArvissExecute(&cpu, encodeI(3) | encodeRs1(1) | (0b101 << 12) | encodeRd(0) | u32FromOpcode(Opcode.opOPIMM));
+    _ = ArvissExecute(&cpu, encodeI(3) | encodeRs1(1) | (0b101 << 12) | encodeRd(0) | opcodeAsU32(Opcode.opOPIMM));
 
     // x0 <- 0
-    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+    try testing.expectEqual(asU32(0), cpu.xreg[0]);
 
     // srai
     cpu.xreg[1] = 0xffffffff;
-    _ = ArvissExecute(&cpu, (1 << 30) | encodeI(3) | encodeRs1(1) | (0b101 << 12) | encodeRd(0) | u32FromOpcode(Opcode.opOPIMM));
+    _ = ArvissExecute(&cpu, (1 << 30) | encodeI(3) | encodeRs1(1) | (0b101 << 12) | encodeRd(0) | opcodeAsU32(Opcode.opOPIMM));
 
     // x0 <- 0
-    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+    try testing.expectEqual(asU32(0), cpu.xreg[0]);
 }
 
 test "add" {
@@ -1139,7 +1179,7 @@ test "add" {
     cpu.xreg[rs2] = 64;
 
     // Add.
-    _ = ArvissExecute(&cpu, (0 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opOP));
+    _ = ArvissExecute(&cpu, (0 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOP));
 
     // rd <- rs1 + rs2
     try testing.expectEqual(cpu.xreg[rs1] +% cpu.xreg[rs2], cpu.xreg[rd]);
@@ -1148,8 +1188,8 @@ test "add" {
     try testing.expectEqual(pc + 4, cpu.pc);
 
     // x0 <- 0
-    _ = ArvissExecute(&cpu, (0 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(0) | u32FromOpcode(Opcode.opOP));
-    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+    _ = ArvissExecute(&cpu, (0 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(0) | opcodeAsU32(Opcode.opOP));
+    try testing.expectEqual(asU32(0), cpu.xreg[0]);
 }
 
 test "sub" {
@@ -1163,7 +1203,7 @@ test "sub" {
     cpu.xreg[rs1] = 192;
     cpu.xreg[rs2] = 64;
 
-    _ = ArvissExecute(&cpu, (0b0100000 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opOP));
+    _ = ArvissExecute(&cpu, (0b0100000 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOP));
 
     // rd <- rs1 - rs2
     try testing.expectEqual(cpu.xreg[rs1] -% cpu.xreg[rs2], cpu.xreg[rd]);
@@ -1172,8 +1212,8 @@ test "sub" {
     try testing.expectEqual(pc + 4, cpu.pc);
 
     // x0 <- 0
-    _ = ArvissExecute(&cpu, (0b0100000 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(0) | u32FromOpcode(Opcode.opOP));
-    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+    _ = ArvissExecute(&cpu, (0b0100000 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(0) | opcodeAsU32(Opcode.opOP));
+    try testing.expectEqual(asU32(0), cpu.xreg[0]);
 }
 
 test "mul" { // 'M' extension.
@@ -1189,7 +1229,7 @@ test "mul" { // 'M' extension.
     cpu.xreg[rs2] = 3;
     const expected: u32 = 999;
 
-    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opOP));
+    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOP));
 
     // rd <- lower32(rs1 * rs2)
     try testing.expectEqual(expected, cpu.xreg[rd]);
@@ -1198,8 +1238,8 @@ test "mul" { // 'M' extension.
     try testing.expectEqual(pc + 4, cpu.pc);
 
     // x0 <- 0
-    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(0) | u32FromOpcode(Opcode.opOP));
-    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(0) | opcodeAsU32(Opcode.opOP));
+    try testing.expectEqual(asU32(0), cpu.xreg[0]);
 }
 
 test "sll (shift left logical)" {
@@ -1213,7 +1253,7 @@ test "sll (shift left logical)" {
     cpu.xreg[rs1] = 1;
     cpu.xreg[rs2] = 10;
 
-    _ = ArvissExecute(&cpu, (0 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b001 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opOP));
+    _ = ArvissExecute(&cpu, (0 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b001 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOP));
 
     // rd <- rs1 << (rs2 % XLEN)
     try testing.expectEqual(cpu.xreg[rs1] << @intCast(u5, (cpu.xreg[rs2] % 32)), cpu.xreg[rd]);
@@ -1222,8 +1262,8 @@ test "sll (shift left logical)" {
     try testing.expectEqual(pc + 4, cpu.pc);
 
     // x0 <- 0
-    _ = ArvissExecute(&cpu, (0 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b001 << 12) | encodeRd(0) | u32FromOpcode(Opcode.opOP));
-    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+    _ = ArvissExecute(&cpu, (0 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b001 << 12) | encodeRd(0) | opcodeAsU32(Opcode.opOP));
+    try testing.expectEqual(asU32(0), cpu.xreg[0]);
 }
 
 test "mulh" { // 'M' extension.
@@ -1239,20 +1279,20 @@ test "mulh" { // 'M' extension.
     cpu.xreg[rs1] = 16777216; // 2 ** 24
     cpu.xreg[rs2] = 0xf5ffec40; // -(2 ** 24)
 
-    const product: i64 = @intCast(i64, @bitCast(i32, cpu.xreg[rs1])) * @intCast(i64, @bitCast(i32, cpu.xreg[rs2]));
-    const expected: i32 = @intCast(i32, product >> 32);
+    const product: i64 = @intCast(i64, asI32(cpu.xreg[rs1])) * @intCast(i64, asI32(cpu.xreg[rs2]));
+    const expected: i32 = asI32(product >> 32);
 
-    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b001 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opOP));
+    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b001 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOP));
 
     // rd <- upper32(rs1 * rs2)
-    try testing.expectEqual(@bitCast(u32, expected), cpu.xreg[rd]);
+    try testing.expectEqual(asU32(expected), cpu.xreg[rd]);
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 
     // x0 <- 0
-    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b001 << 12) | encodeRd(0) | u32FromOpcode(Opcode.opOP));
-    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b001 << 12) | encodeRd(0) | opcodeAsU32(Opcode.opOP));
+    try testing.expectEqual(asU32(0), cpu.xreg[0]);
 }
 
 test "slt (set less than)" {
@@ -1267,10 +1307,10 @@ test "slt (set less than)" {
 
     // Condition true.
     cpu.xreg[rs1] = 0xffffffff; // -1
-    _ = ArvissExecute(&cpu, (0 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b010 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opOP));
+    _ = ArvissExecute(&cpu, (0 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b010 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOP));
 
     // rd <- (rs1 < imm_i) ? 1 : 0
-    try testing.expectEqual(@intCast(u32, 1), cpu.xreg[rd]);
+    try testing.expectEqual(asU32(1), cpu.xreg[rd]);
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
@@ -1278,17 +1318,17 @@ test "slt (set less than)" {
     // Condition false.
     pc = cpu.pc;
     cpu.xreg[rs1] = 123;
-    _ = ArvissExecute(&cpu, (0 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b010 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opOP));
+    _ = ArvissExecute(&cpu, (0 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b010 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOP));
 
     // rd <- (rs1 < imm_i) ? 1 : 0
-    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[rd]);
+    try testing.expectEqual(asU32(0), cpu.xreg[rd]);
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 
     // x0 <- 0
-    _ = ArvissExecute(&cpu, (0 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b010 << 12) | encodeRd(0) | u32FromOpcode(Opcode.opOP));
-    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+    _ = ArvissExecute(&cpu, (0 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b010 << 12) | encodeRd(0) | opcodeAsU32(Opcode.opOP));
+    try testing.expectEqual(asU32(0), cpu.xreg[0]);
 }
 
 test "mulhsu" { // 'M' extension.
@@ -1304,20 +1344,20 @@ test "mulhsu" { // 'M' extension.
     cpu.xreg[rs1] = 16777216; // 2 ** 24
     cpu.xreg[rs2] = 0xffffc000; // -16384 signed, 4294950912 unsigned
 
-    const product: i64 = @bitCast(i64, @intCast(u64, @bitCast(i32, cpu.xreg[rs1])) * @intCast(u64, cpu.xreg[rs2]));
-    const expected: i32 = @intCast(i32, product >> 32);
+    const product: i64 = @bitCast(i64, @intCast(u64, asI32(cpu.xreg[rs1])) * @intCast(u64, cpu.xreg[rs2]));
+    const expected: i32 = asI32(product >> 32);
 
-    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b010 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opOP));
+    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b010 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOP));
 
     // rd <- upper32(rs1 * rs2)
-    try testing.expectEqual(@bitCast(u32, expected), cpu.xreg[rd]);
+    try testing.expectEqual(asU32(expected), cpu.xreg[rd]);
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 
     // x0 <- 0
-    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b010 << 12) | encodeRd(0) | u32FromOpcode(Opcode.opOP));
-    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b010 << 12) | encodeRd(0) | opcodeAsU32(Opcode.opOP));
+    try testing.expectEqual(asU32(0), cpu.xreg[0]);
 }
 
 test "sltu (set less than unsigned)" {
@@ -1332,10 +1372,10 @@ test "sltu (set less than unsigned)" {
 
     // Condition true.
     cpu.xreg[rs1] = 0;
-    _ = ArvissExecute(&cpu, (0 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b011 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opOP));
+    _ = ArvissExecute(&cpu, (0 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b011 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOP));
 
     // rd <- (rs1 < imm_i) ? 1 : 0
-    try testing.expectEqual(@intCast(u32, 1), cpu.xreg[rd]);
+    try testing.expectEqual(asU32(1), cpu.xreg[rd]);
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
@@ -1343,17 +1383,17 @@ test "sltu (set less than unsigned)" {
     // Condition false.
     pc = cpu.pc;
     cpu.xreg[rs1] = 0xffffffff;
-    _ = ArvissExecute(&cpu, (0 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b011 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opOP));
+    _ = ArvissExecute(&cpu, (0 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b011 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOP));
 
     // rd <- (rs1 < imm_i) ? 1 : 0
-    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[rd]);
+    try testing.expectEqual(asU32(0), cpu.xreg[rd]);
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 
     // x0 <- 0
-    _ = ArvissExecute(&cpu, (0 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b011 << 12) | encodeRd(0) | u32FromOpcode(Opcode.opOP));
-    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+    _ = ArvissExecute(&cpu, (0 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b011 << 12) | encodeRd(0) | opcodeAsU32(Opcode.opOP));
+    try testing.expectEqual(asU32(0), cpu.xreg[0]);
 }
 
 test "mulhu" { // 'M' extension.
@@ -1370,19 +1410,19 @@ test "mulhu" { // 'M' extension.
     cpu.xreg[rs2] = 0xffffc000; // 4294950912 unsigned
 
     const product: u64 = @intCast(u64, cpu.xreg[rs1]) * @intCast(u64, cpu.xreg[rs2]);
-    const expected: u32 = @intCast(u32, product >> 32);
+    const expected: u32 = asU32(product >> 32);
 
-    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b011 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opOP));
+    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b011 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOP));
 
     // rd <- upper32(rs1 * rs2)
-    try testing.expectEqual(@bitCast(u32, expected), cpu.xreg[rd]);
+    try testing.expectEqual(asU32(expected), cpu.xreg[rd]);
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 
     // x0 <- 0
-    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b011 << 12) | encodeRd(0) | u32FromOpcode(Opcode.opOP));
-    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b011 << 12) | encodeRd(0) | opcodeAsU32(Opcode.opOP));
+    try testing.expectEqual(asU32(0), cpu.xreg[0]);
 }
 
 test "xor" {
@@ -1396,7 +1436,7 @@ test "xor" {
     cpu.xreg[rs1] = 0xff;
     cpu.xreg[rs2] = 0xfe;
 
-    _ = ArvissExecute(&cpu, (0 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b100 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opOP));
+    _ = ArvissExecute(&cpu, (0 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b100 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOP));
 
     // rd <- rs1 ^ rs2
     try testing.expectEqual(cpu.xreg[rs1] ^ cpu.xreg[rs2], cpu.xreg[rd]);
@@ -1405,8 +1445,8 @@ test "xor" {
     try testing.expectEqual(pc + 4, cpu.pc);
 
     // x0 <- 0
-    _ = ArvissExecute(&cpu, (0 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b100 << 12) | encodeRd(0) | u32FromOpcode(Opcode.opOP));
-    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+    _ = ArvissExecute(&cpu, (0 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b100 << 12) | encodeRd(0) | opcodeAsU32(Opcode.opOP));
+    try testing.expectEqual(asU32(0), cpu.xreg[0]);
 }
 
 test "div" { // 'M' extension.
@@ -1421,30 +1461,30 @@ test "div" { // 'M' extension.
     cpu.xreg[rs1] = 262144;
     cpu.xreg[rs2] = 0xfffffc00; // -1024
 
-    const expected = @divTrunc(@bitCast(i32, cpu.xreg[rs1]), @bitCast(i32, cpu.xreg[rs2]));
+    const expected = @divTrunc(asI32(cpu.xreg[rs1]), asI32(cpu.xreg[rs2]));
 
-    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b100 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opOP));
+    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b100 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOP));
 
     // rd <- rs1 / rs2
-    try testing.expectEqual(expected, @bitCast(i32, cpu.xreg[rd]));
+    try testing.expectEqual(expected, asI32(cpu.xreg[rd]));
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 
     // Division by zero sets the result to -1.
     cpu.xreg[rs2] = 0;
-    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b100 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opOP));
-    try testing.expectEqual(@intCast(i32, -1), @bitCast(i32, cpu.xreg[rd]));
+    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b100 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOP));
+    try testing.expectEqual(@intCast(i32, -1), asI32(cpu.xreg[rd]));
 
     // Division of the most negative integer by -1 results in overflow.
     cpu.xreg[rs1] = 0x80000000; // -2**31
     cpu.xreg[rs2] = 0xffffffff; // -1
-    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b100 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opOP));
-    try testing.expectEqual(@intCast(u32, 0x80000000), cpu.xreg[rd]);
+    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b100 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOP));
+    try testing.expectEqual(asU32(0x80000000), cpu.xreg[rd]);
 
     // x0 <- 0
-    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b100 << 12) | encodeRd(0) | u32FromOpcode(Opcode.opOP));
-    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b100 << 12) | encodeRd(0) | opcodeAsU32(Opcode.opOP));
+    try testing.expectEqual(asU32(0), cpu.xreg[0]);
 }
 
 test "srl (shift right logical)" {
@@ -1458,7 +1498,7 @@ test "srl (shift right logical)" {
     cpu.xreg[rs1] = 0x80000000;
     cpu.xreg[rs2] = 4;
 
-    _ = ArvissExecute(&cpu, (0 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b101 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opOP));
+    _ = ArvissExecute(&cpu, (0 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b101 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOP));
 
     // rd <- rs1 >> (rs2 % XLEN)
     try testing.expectEqual(cpu.xreg[rs1] >> @intCast(u5, (cpu.xreg[rs2] % 32)), cpu.xreg[rd]);
@@ -1467,8 +1507,8 @@ test "srl (shift right logical)" {
     try testing.expectEqual(pc + 4, cpu.pc);
 
     // x0 <- 0
-    _ = ArvissExecute(&cpu, (0 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b101 << 12) | encodeRd(0) | u32FromOpcode(Opcode.opOP));
-    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+    _ = ArvissExecute(&cpu, (0 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b101 << 12) | encodeRd(0) | opcodeAsU32(Opcode.opOP));
+    try testing.expectEqual(asU32(0), cpu.xreg[0]);
 }
 
 test "sra (shift right arithmetic)" {
@@ -1482,17 +1522,17 @@ test "sra (shift right arithmetic)" {
     cpu.xreg[rs1] = 0x80000000;
     cpu.xreg[rs2] = 4;
 
-    _ = ArvissExecute(&cpu, (0b0100000 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b101 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opOP));
+    _ = ArvissExecute(&cpu, (0b0100000 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b101 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOP));
 
     // rd <- sx(rs1) >> (rs2 % XLEN)
-    try testing.expectEqual(@bitCast(u32, @bitCast(i32, cpu.xreg[rs1]) >> @intCast(u5, (cpu.xreg[rs2] % 32))), cpu.xreg[rd]);
+    try testing.expectEqual(asU32(asI32(cpu.xreg[rs1]) >> @intCast(u5, (cpu.xreg[rs2] % 32))), cpu.xreg[rd]);
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 
     // x0 <- 0
-    _ = ArvissExecute(&cpu, (0b0100000 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b101 << 12) | encodeRd(0) | u32FromOpcode(Opcode.opOP));
-    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+    _ = ArvissExecute(&cpu, (0b0100000 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b101 << 12) | encodeRd(0) | opcodeAsU32(Opcode.opOP));
+    try testing.expectEqual(asU32(0), cpu.xreg[0]);
 }
 
 test "divu" { // 'M' extension.
@@ -1509,7 +1549,7 @@ test "divu" { // 'M' extension.
 
     const expected = @divTrunc(cpu.xreg[rs1], cpu.xreg[rs2]);
 
-    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b101 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opOP));
+    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b101 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOP));
 
     // rd <- rs1 / rs2
     try testing.expectEqual(expected, cpu.xreg[rd]);
@@ -1519,12 +1559,12 @@ test "divu" { // 'M' extension.
 
     // Division by zero sets the result to 0xffffffff.
     cpu.xreg[rs2] = 0;
-    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b101 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opOP));
-    try testing.expectEqual(@intCast(u32, 0xffffffff), cpu.xreg[rd]);
+    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b101 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOP));
+    try testing.expectEqual(asU32(0xffffffff), cpu.xreg[rd]);
 
     // x0 <- 0
-    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b101 << 12) | encodeRd(0) | u32FromOpcode(Opcode.opOP));
-    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b101 << 12) | encodeRd(0) | opcodeAsU32(Opcode.opOP));
+    try testing.expectEqual(asU32(0), cpu.xreg[0]);
 }
 
 test "or" {
@@ -1538,7 +1578,7 @@ test "or" {
     cpu.xreg[rs1] = 0x00ff00ff;
     cpu.xreg[rs2] = 0xff00ffff;
 
-    _ = ArvissExecute(&cpu, (0 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b110 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opOP));
+    _ = ArvissExecute(&cpu, (0 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b110 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOP));
 
     // rd <- rs1 | rs2
     try testing.expectEqual(cpu.xreg[rs1] | cpu.xreg[rs2], cpu.xreg[rd]);
@@ -1547,8 +1587,8 @@ test "or" {
     try testing.expectEqual(pc + 4, cpu.pc);
 
     // x0 <- 0
-    _ = ArvissExecute(&cpu, (0 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b110 << 12) | encodeRd(0) | u32FromOpcode(Opcode.opOP));
-    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+    _ = ArvissExecute(&cpu, (0 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b110 << 12) | encodeRd(0) | opcodeAsU32(Opcode.opOP));
+    try testing.expectEqual(asU32(0), cpu.xreg[0]);
 }
 
 test "rem" { // 'M' extension.
@@ -1562,33 +1602,33 @@ test "rem" { // 'M' extension.
     const rs1: u32 = 13;
     const rs2: u32 = 14;
     const dividend: i32 = -65535;
-    cpu.xreg[rs1] = @bitCast(u32, dividend);
+    cpu.xreg[rs1] = asU32(dividend);
     cpu.xreg[rs2] = 4096;
 
-    const expected = @rem(@bitCast(i32, cpu.xreg[rs1]), @bitCast(i32, cpu.xreg[rs2]));
+    const expected = @rem(asI32(cpu.xreg[rs1]), asI32(cpu.xreg[rs2]));
 
-    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b110 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opOP));
+    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b110 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOP));
 
     // rd <- rs1 % rs2
-    try testing.expectEqual(expected, @bitCast(i32, cpu.xreg[rd]));
+    try testing.expectEqual(expected, asI32(cpu.xreg[rd]));
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 
     // Division by zero sets the result to the dividend.
     cpu.xreg[rs2] = 0;
-    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b110 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opOP));
-    try testing.expectEqual(dividend, @bitCast(i32, cpu.xreg[rd]));
+    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b110 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOP));
+    try testing.expectEqual(dividend, asI32(cpu.xreg[rd]));
 
     // Division of the most negative number by -1 results in overflow which sets the result to zero.
     cpu.xreg[rs1] = 0x80000000; // -2**31
     cpu.xreg[rs2] = 0xffffffff; // -1
-    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b110 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opOP));
-    try testing.expectEqual(@intCast(i32, 0), @bitCast(i32, cpu.xreg[rd]));
+    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b110 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOP));
+    try testing.expectEqual(asI32(0), asI32(cpu.xreg[rd]));
 
     // x0 <- 0
-    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b110 << 12) | encodeRd(0) | u32FromOpcode(Opcode.opOP));
-    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b110 << 12) | encodeRd(0) | opcodeAsU32(Opcode.opOP));
+    try testing.expectEqual(asU32(0), cpu.xreg[0]);
 }
 
 test "and" {
@@ -1602,7 +1642,7 @@ test "and" {
     cpu.xreg[rs1] = 0xff00ff00;
     cpu.xreg[rs2] = 0xff00ffff;
 
-    _ = ArvissExecute(&cpu, (0 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b111 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opOP));
+    _ = ArvissExecute(&cpu, (0 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b111 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOP));
 
     // rd <- rs1 & rs2
     try testing.expectEqual(cpu.xreg[rs1] & cpu.xreg[rs2], cpu.xreg[rd]);
@@ -1611,8 +1651,8 @@ test "and" {
     try testing.expectEqual(pc + 4, cpu.pc);
 
     // x0 <- 0
-    _ = ArvissExecute(&cpu, (0 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b111 << 12) | encodeRd(0) | u32FromOpcode(Opcode.opOP));
-    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+    _ = ArvissExecute(&cpu, (0 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b111 << 12) | encodeRd(0) | opcodeAsU32(Opcode.opOP));
+    try testing.expectEqual(asU32(0), cpu.xreg[0]);
 }
 
 test "remu" { // 'M' extension.
@@ -1629,9 +1669,9 @@ test "remu" { // 'M' extension.
     cpu.xreg[rs1] = dividend;
     cpu.xreg[rs2] = 16384;
 
-    const expected = @rem(@bitCast(u32, cpu.xreg[rs1]), @bitCast(u32, cpu.xreg[rs2]));
+    const expected = @rem(cpu.xreg[rs1], cpu.xreg[rs2]);
 
-    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b111 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opOP));
+    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b111 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOP));
 
     // rd <- rs1 % rs2
     try testing.expectEqual(expected, cpu.xreg[rd]);
@@ -1641,12 +1681,12 @@ test "remu" { // 'M' extension.
 
     // Division by zero sets the result to the dividend.
     cpu.xreg[rs2] = 0;
-    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b111 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opOP));
+    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b111 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOP));
     try testing.expectEqual(dividend, cpu.xreg[rd]);
 
     // x0 <- 0
-    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b111 << 12) | encodeRd(0) | u32FromOpcode(Opcode.opOP));
-    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+    _ = ArvissExecute(&cpu, (0b0000001 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b111 << 12) | encodeRd(0) | opcodeAsU32(Opcode.opOP));
+    try testing.expectEqual(asU32(0), cpu.xreg[0]);
 }
 
 test "mret" {
@@ -1656,7 +1696,7 @@ test "mret" {
     cpu.mepc = 0x4000;
     cpu.pc = 0x8080;
 
-    _ = ArvissExecute(&cpu, (0b001100000010 << 20) | u32FromOpcode(Opcode.opSYSTEM));
+    _ = ArvissExecute(&cpu, (0b001100000010 << 20) | opcodeAsU32(Opcode.opSYSTEM));
 
     // pc <- mepc + 4
     try testing.expectEqual(cpu.mepc + 4, cpu.pc);
@@ -1671,7 +1711,7 @@ test "traps set mepc" {
     const saved_pc: u32 = cpu.pc;
 
     // Take a breakpoint.
-    _ = ArvissExecute(&cpu, (0b000000000001 << 20) | u32FromOpcode(Opcode.opSYSTEM));
+    _ = ArvissExecute(&cpu, (0b000000000001 << 20) | opcodeAsU32(Opcode.opSYSTEM));
 
     // mepc <- pc
     try testing.expectEqual(saved_pc, cpu.mepc);
@@ -1685,7 +1725,7 @@ test "traps set mcause" {
     cpu.mepc = 0;
 
     // Take a breakpoint.
-    _ = ArvissExecute(&cpu, (0b000000000001 << 20) | u32FromOpcode(Opcode.opSYSTEM));
+    _ = ArvissExecute(&cpu, (0b000000000001 << 20) | opcodeAsU32(Opcode.opSYSTEM));
 
     // mepc <- pc
     try testing.expectEqual(@enumToInt(arviss.ArvissTrapType.trBREAKPOINT), cpu.mcause);
@@ -1705,7 +1745,7 @@ test "traps set mtval" {
     const rs1: u32 = 15;
     cpu.xreg[rs1] = address;
 
-    _ = ArvissExecute(&cpu, encodeI(imm_i) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opLOAD));
+    _ = ArvissExecute(&cpu, encodeI(imm_i) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opLOAD));
 
     // mtval <- exception specific information
     try testing.expectEqual(address, cpu.mtval);
