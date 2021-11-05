@@ -159,6 +159,40 @@ inline fn u32FromOpcode(comptime opcode: Opcode) u32 {
     return @enumToInt(opcode);
 }
 
+inline fn asU32(n: anytype) u32 {
+    switch (@TypeOf(n)) {
+        comptime_int => {
+            return @intCast(u32, n);
+        },
+        u32 => {
+            return n;
+        },
+        i32 => {
+            return @bitCast(u32, n);
+        },
+        else => {
+            @compileError("Unable to convert" ++ @typeName(@TypeOf(n)) ++ " to u32");
+        },
+    }
+}
+
+inline fn asI32(n: anytype) i32 {
+    switch (@TypeOf(n)) {
+        comptime_int => {
+            return @intCast(u32, n);
+        },
+        i32 => {
+            return n;
+        },
+        u32 => {
+            return @bitCast(i32, n);
+        },
+        else => {
+            @compileError("Unable to convert" ++ @typeName(@TypeOf(n)) ++ " to i32");
+        },
+    }
+}
+
 var memory: Memory = .{ .mem = undefined };
 
 fn ArvissCpu(mem: *Memory) arviss.ArvissCpu {
@@ -192,10 +226,10 @@ test "lui" {
         const rd: u32 = 3;
         const pc: u32 = cpu.pc;
 
-        _ = ArvissExecute(&cpu, @bitCast(u32, (imm_u << 12)) | encodeRd(rd) | u32FromOpcode(Opcode.opLUI));
+        _ = ArvissExecute(&cpu, asU32(imm_u << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opLUI));
 
         // rd <- imm_u
-        try testing.expectEqual(imm_u, @bitCast(i32, cpu.xreg[rd]) >> 12);
+        try testing.expectEqual(imm_u, asI32(cpu.xreg[rd]) >> 12);
 
         // pc <- pc + 4
         try testing.expectEqual(pc + 4, cpu.pc);
@@ -209,10 +243,10 @@ test "lui leaves x0 as zero" {
     const rd: u32 = 0;
     const pc: u32 = cpu.pc;
 
-    _ = ArvissExecute(&cpu, @bitCast(u32, @intCast(u32, imm_u << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opLUI)));
+    _ = ArvissExecute(&cpu, asU32(imm_u << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opLUI));
 
     // x0 <- 0
-    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+    try testing.expectEqual(asU32(0), cpu.xreg[0]);
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
@@ -228,10 +262,10 @@ test "auipc" {
         const rd: u32 = 9;
         const pc: u32 = cpu.pc;
 
-        _ = ArvissExecute(&cpu, @bitCast(u32, (imm_u << 12)) | encodeRd(rd) | u32FromOpcode(Opcode.opAUIPC));
+        _ = ArvissExecute(&cpu, asU32(imm_u << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opAUIPC));
 
         // rd <- pc + imm_u
-        try testing.expectEqual(pc +% @bitCast(u32, imm_u << 12), cpu.xreg[rd]);
+        try testing.expectEqual(pc +% asU32(imm_u << 12), cpu.xreg[rd]);
 
         // pc <- pc + 4
         try testing.expectEqual(pc + 4, cpu.pc);
@@ -245,10 +279,10 @@ test "auipc leaves x0 as zero" {
     const rd: u32 = 0;
     const pc: u32 = cpu.pc;
 
-    _ = ArvissExecute(&cpu, @bitCast(u32, (imm_u << 12)) | encodeRd(rd) | u32FromOpcode(Opcode.opAUIPC));
+    _ = ArvissExecute(&cpu, asU32(imm_u << 12) | encodeRd(rd) | u32FromOpcode(Opcode.opAUIPC));
 
     // x0 <- 0
-    try testing.expectEqual(@intCast(u32, 0), cpu.xreg[0]);
+    try testing.expectEqual(asU32(0), cpu.xreg[0]);
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
