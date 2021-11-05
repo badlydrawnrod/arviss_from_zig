@@ -2007,3 +2007,28 @@ test "fsqrt.s" { // 'F' extension.
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 }
+
+inline fn sgn(n: f32) f32 {
+    return if (n < 0.0) -1.0 else 1.0;
+}
+
+test "fsgnj.s" { // 'F' extension.
+    var cpu = Cpu();
+
+    // rd <- abs(rs1) * sgn(rs2), pc += 4
+    var pc: u32 = cpu.pc;
+    const rd: u32 = 1;
+    const rs1: u32 = 4;
+    const rs2: u32 = 5;
+    cpu.freg[rs1] = -32.0;
+    cpu.freg[rs2] = -21.0;
+    const expected = @fabs(cpu.freg[rs1]) * sgn(cpu.freg[rs2]);
+
+    _ = ArvissExecute(&cpu, (0b0010000 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOPFP));
+
+    // rd <- abs(rs1) * sgn(rs2)
+    try testing.expectEqual(expected, cpu.freg[rd]);
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+}
