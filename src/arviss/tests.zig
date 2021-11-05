@@ -2168,3 +2168,25 @@ test "fmax.s" { // 'F' extension.
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 }
+
+test "fcvt.w.s" { // 'F' extension.
+    var cpu = Cpu();
+
+    // rd <- uint32_t(rs1), pc += 4
+    var pc: u32 = cpu.pc;
+    const rd: u32 = 15;
+    const rs1: u32 = 13;
+    const op: u32 = 0b00001;
+    const rm: u32 = @enumToInt(arviss.ArvissRoundingMode.rmDYN);
+    cpu.freg[rs1] = -12345678.910; // Actually -12345679.0f because of rounding.
+
+    const expected: u32 = asU32(@intCast(i32, -12345679));
+
+    _ = ArvissExecute(&cpu, (0b1100000 << 25) | encodeRs2(op) | encodeRs1(rs1) | encodeRm(rm) | encodeRd(rd) | opcodeAsU32(Opcode.opOPFP));
+
+    // rd <- uint32_t(rs1).
+    try testing.expectEqual(expected, cpu.xreg[rd]);
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+}
