@@ -695,7 +695,6 @@ test "lw (load word)" {
     var cpu = Cpu();
 
     // rd <- sx(m32(rs1 + imm_i)), pc += 4
-    cpu.pc = 0x1000;
     var pc: u32 = cpu.pc;
     const imm_i: i32 = 274;
     const rd: u32 = 14;
@@ -1749,4 +1748,28 @@ test "traps set mtval" {
 
     // mtval <- exception specific information
     try testing.expectEqual(address, cpu.mtval);
+}
+
+test "flw" { // 'F' extension.
+    var cpu = Cpu();
+
+    // rd <- f32(rs1 + imm_i), pc += 4
+    var pc: u32 = cpu.pc;
+    const imm_i: i32 = 274;
+    const rd: u32 = 14;
+    const rs1: u32 = 15;
+    cpu.xreg[rs1] = rambase;
+
+    // Write a float.
+    const expected: f32 = -1234e-6;
+    const expected_as_u32: u32 = @bitCast(u32, expected);
+    memory.write32(asU32(asI32(cpu.xreg[rs1]) + imm_i), expected_as_u32, &cpu.busCode);
+
+    _ = ArvissExecute(&cpu, encodeI(imm_i) | encodeRs1(rs1) | (0b010 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opLOADFP));
+
+    // rd <= f32(rs1 + imm_i)
+    try testing.expectEqual(expected, cpu.freg[rd]);
+    
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
 }
