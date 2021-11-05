@@ -2509,3 +2509,25 @@ test "fcvt.s.w" { // 'F' extension.
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 }
+
+test "fcvt.s.wu" { // 'F' extension.
+    var cpu = Cpu();
+
+    // rd <- float(rs1), pc += 4
+    var pc: u32 = cpu.pc;
+    const rd: u32 = 15;
+    const rs1: u32 = 13;
+    const op: u32 = 0b00001;
+    const rm: u32 = @enumToInt(arviss.ArvissRoundingMode.rmDYN);
+    cpu.xreg[rs1] = 0xfffffe38; // -456.
+
+    const expected: f32 = @intToFloat(f32, cpu.xreg[rs1]);
+
+    _ = ArvissExecute(&cpu, (0b1101000 << 25) | encodeRs2(op) | encodeRs1(rs1) | encodeRm(rm) | encodeRd(rd) | opcodeAsU32(Opcode.opOPFP));
+
+    // rd <- float(rs1).
+    try testing.expectEqual(expected, cpu.freg[rd]);
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+}
