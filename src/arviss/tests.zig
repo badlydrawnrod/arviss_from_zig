@@ -1607,3 +1607,18 @@ test "mret" {
     // pc <- mepc + 4
     try testing.expectEqual(cpu.mepc + 4, cpu.pc);
 }
+
+test "traps set mepc" {
+    var cpu = Cpu();
+
+    // mepc <- pc
+    cpu.pc = 0x8086;
+    cpu.mepc = 0;
+    const saved_pc: u32 = cpu.pc;
+
+    // Take a breakpoint.
+    _ = ArvissExecute(&cpu, (0b000000000001 << 20) | @enumToInt(arviss.ArvissOpcode.opSYSTEM));
+
+    // mepc <- pc
+    try testing.expectEqual(saved_pc, cpu.mepc);
+}
