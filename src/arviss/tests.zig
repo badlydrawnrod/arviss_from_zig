@@ -2439,3 +2439,51 @@ test "flt.s" { // 'F' extension.
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 }
+
+test "fle.s" { // 'F' extension.
+    var cpu = Cpu();
+
+    // rd <- (rs <= rs2) ? 1 : 0, pc += 4
+    var pc: u32 = cpu.pc;
+    const rd: u32 = 5;
+    const rs1: u32 = 6;
+    const rs2: u32 = 1;
+
+    // rs1 == rs2
+    cpu.freg[rs1] = -56.0;
+    cpu.freg[rs2] = -56.0;
+
+    _ = ArvissExecute(&cpu, (0b1010000 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOPFP));
+
+    // rd <- 1
+    try testing.expectEqual(asU32(1), cpu.xreg[rd]);
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+
+    // rs1 < rs2
+    pc = cpu.pc;
+    cpu.freg[rs1] = 3456.0;
+    cpu.freg[rs2] = 12356.0;
+
+    _ = ArvissExecute(&cpu, (0b1010000 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOPFP));
+
+    // rd <- 1
+    try testing.expectEqual(asU32(1), cpu.xreg[rd]);
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+
+    // rs1 > rs2
+    pc = cpu.pc;
+    cpu.freg[rs1] = 3456.0;
+    cpu.freg[rs2] = 56.0;
+
+    _ = ArvissExecute(&cpu, (0b1010000 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOPFP));
+
+    // rd <- 0
+    try testing.expectEqual(asU32(0), cpu.xreg[rd]);
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+}
