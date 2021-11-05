@@ -159,6 +159,18 @@ typedef enum
     abiFT11 = 31
 } ArvissFloatReg;
 
+typedef enum
+{
+    rmRNE = 0b000,
+    rmRTZ = 0b001,
+    rmRDN = 0b010,
+    rmRUP = 0b011,
+    rmRMM = 0b100,
+    rmRSVD5 = 0b101,
+    rmRSVD6 = 0b110,
+    rmDYN = 0b111
+} ArvissRoundingMode;
+
 /**
  * A handle to an Arviss CPU.
  */
