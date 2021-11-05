@@ -2531,3 +2531,23 @@ test "fcvt.s.wu" { // 'F' extension.
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 }
+
+test "fmv.w.x" { // 'F' extension.
+    var cpu = Cpu();
+
+    // bits(rd) <- bits(rs1), pc += 4
+    var pc: u32 = cpu.pc;
+    const rd: u32 = 5;
+    const rs1: u32 = 7;
+    cpu.xreg[rs1] = 17135;
+    
+    const expected: f32 = @bitCast(f32, cpu.xreg[rs1]);
+
+    _ = ArvissExecute(&cpu, (0b1111000 << 25) | encodeRs2(0b00000) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOPFP));
+
+    // bits(rd) <- bits(rs1)
+    try testing.expectEqual(expected, cpu.freg[rd]);
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+}
