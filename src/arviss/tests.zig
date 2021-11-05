@@ -2053,3 +2053,68 @@ test "fsgnjn.s" { // 'F' extension.
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 }
+
+test "fsgnjx.s" { // 'F' extension.
+    var cpu = Cpu();
+
+    // rd <- abs(rs1) * (sgn(rs1) == sgn(rs2)) ? 1 : -1
+    var pc: u32 = cpu.pc;
+    const rd: u32 = 3;
+    const rs1: u32 = 2;
+    const rs2: u32 = 1;
+
+    // Both positive.
+    cpu.freg[rs1] = 4323.0;
+    cpu.freg[rs2] = 75.0;
+    var expected = @fabs(cpu.freg[rs1]);
+
+    _ = ArvissExecute(&cpu, (0b0010000 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b010 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOPFP));
+
+    // rd <- abs(rs1) * 1
+    try testing.expectEqual(expected, cpu.freg[rd]);
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+
+    // Both negative.
+    pc = cpu.pc;
+    cpu.freg[rs1] = -284.4;
+    cpu.freg[rs2] = -972.0;
+    expected = @fabs(cpu.freg[rs1]);
+
+    _ = ArvissExecute(&cpu, (0b0010000 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b010 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOPFP));
+
+    // rd <- abs(rs1) * 1
+    try testing.expectEqual(expected, cpu.freg[rd]);
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+
+    // Positive and negative.
+    pc = cpu.pc;
+    cpu.freg[rs1] = 284.4;
+    cpu.freg[rs2] = -196.0;
+    expected = -@fabs(cpu.freg[rs1]);
+
+    _ = ArvissExecute(&cpu, (0b0010000 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b010 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOPFP));
+
+    // rd <- abs(rs1) * -1
+    try testing.expectEqual(expected, cpu.freg[rd]);
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+
+    // Negative and positive.
+    pc = cpu.pc;
+    cpu.freg[rs1] = -1337.4;
+    cpu.freg[rs2] = 195.0;
+    expected = -@fabs(cpu.freg[rs1]);
+
+    _ = ArvissExecute(&cpu, (0b0010000 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b010 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOPFP));
+
+    // rd <- abs(rs1) * -1
+    try testing.expectEqual(expected, cpu.freg[rd]);
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+}
