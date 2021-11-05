@@ -125,8 +125,16 @@ inline fn encodeRs2(n: u32) u32 {
     return n << 20;
 }
 
+inline fn encodeRs3(n: u32) u32 {
+    return n << 27;
+}
+
 inline fn encodeRd(n: u32) u32 {
     return n << 7;
+}
+
+inline fn encodeRm(n: u32) u32 {
+    return n << 12;
 }
 
 inline fn encodeJ(n: anytype) u32 {
@@ -1791,8 +1799,55 @@ test "fsw" { // 'F' extension.
 
     // m32(rs1 + imm_s) <- rs2
     const word_result: u32 = memory.read32(asU32(asI32(cpu.xreg[rs1]) + imm_s), &cpu.busCode);
-
     try testing.expectEqual(expected, @bitCast(f32, word_result));
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+}
+
+test "fmadd.s" { // 'F' extension.
+    var cpu = Cpu();
+
+    // rd <- (rs1 * rs2) + rs3, pc += 4
+    var pc: u32 = cpu.pc;
+    const rd: u32 = 5;
+    const rs1: u32 = 2;
+    const rs2: u32 = 29;
+    const rs3: u32 = 3;
+    const rm: u32 = @enumToInt(arviss.ArvissRoundingMode.rmDYN);
+    cpu.freg[rs1] = 12.34;
+    cpu.freg[rs2] = 56.78;
+    cpu.freg[rs3] = 100.0;
+    const expected = cpu.freg[rs1] * cpu.freg[rs2] + cpu.freg[rs3];
+
+    _ = ArvissExecute(&cpu, encodeRs3(rs3) | (0b00 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | encodeRm(rm) | encodeRd(rd) | opcodeAsU32(Opcode.opMADD));
+
+    // rd <- (rs1 * rs2) + rs3
+    try testing.expectEqual(expected, cpu.freg[rd]);
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+}
+
+test "fmsub.s" { // 'F' extension.
+    var cpu = Cpu();
+
+    // rd <- (rs1 * rs2) - rs3, pc += 4
+    var pc: u32 = cpu.pc;
+    const rd: u32 = 5;
+    const rs1: u32 = 2;
+    const rs2: u32 = 29;
+    const rs3: u32 = 3;
+    const rm: u32 = @enumToInt(arviss.ArvissRoundingMode.rmDYN);
+    cpu.freg[rs1] = 1244.5;
+    cpu.freg[rs2] = 10.0;
+    cpu.freg[rs3] = 100.0;
+    const expected = cpu.freg[rs1] * cpu.freg[rs2] - cpu.freg[rs3];
+
+    _ = ArvissExecute(&cpu, encodeRs3(rs3) | (0b00 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | encodeRm(rm) | encodeRd(rd) | opcodeAsU32(Opcode.opMSUB));
+
+    // rd <- (rs1 * rs2) - rs3
+    try testing.expectEqual(expected, cpu.freg[rd]);
 
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
