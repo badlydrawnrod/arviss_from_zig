@@ -1184,7 +1184,7 @@ test "mulh" { // 'M' extension.
     const rs2: u32 = 14;
     cpu.xreg[rs1] = 16777216; // 2 ** 24
     cpu.xreg[rs2] = 0xf5ffec40; // -(2 ** 24)
-    
+
     const product: i64 = @intCast(i64, @bitCast(i32, cpu.xreg[rs1])) * @intCast(i64, @bitCast(i32, cpu.xreg[rs2]));
     const expected: i32 = @intCast(i32, product >> 32);
 
@@ -1249,7 +1249,7 @@ test "mulhsu" { // 'M' extension.
     const rs2: u32 = 14;
     cpu.xreg[rs1] = 16777216; // 2 ** 24
     cpu.xreg[rs2] = 0xffffc000; // -16384 signed, 4294950912 unsigned
-    
+
     const product: i64 = @bitCast(i64, @intCast(u64, @bitCast(i32, cpu.xreg[rs1])) * @intCast(u64, cpu.xreg[rs2]));
     const expected: i32 = @intCast(i32, product >> 32);
 
@@ -1314,7 +1314,7 @@ test "mulhu" { // 'M' extension.
     const rs2: u32 = 14;
     cpu.xreg[rs1] = 0xffffc000; // 4294950912 unsigned
     cpu.xreg[rs2] = 0xffffc000; // 4294950912 unsigned
-    
+
     const product: u64 = @intCast(u64, cpu.xreg[rs1]) * @intCast(u64, cpu.xreg[rs2]);
     const expected: u32 = @intCast(u32, product >> 32);
 
@@ -1635,4 +1635,24 @@ test "traps set mcause" {
 
     // mepc <- pc
     try testing.expectEqual(@enumToInt(arviss.ArvissTrapType.trBREAKPOINT), cpu.mcause);
+}
+
+test "traps set mtval" {
+    var cpu = Cpu();
+
+    // mepc <- pc
+    const address: u32 = 0x80000000;
+    cpu.mepc = 0;
+
+    // Attempt to read from invalid memory.
+    const pc: u32 = cpu.pc;
+    const imm_i: i32 = 0;
+    const rd: u32 = 14;
+    const rs1: u32 = 15;
+    cpu.xreg[rs1] = address;
+
+    _ = ArvissExecute(&cpu, encodeI(imm_i) | encodeRs1(rs1) | (0b000 << 12) | encodeRd(rd) | @enumToInt(arviss.ArvissOpcode.opLOAD));
+
+    // mtval <- exception specific information
+    try testing.expectEqual(address, cpu.mtval);
 }
