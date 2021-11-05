@@ -2032,3 +2032,24 @@ test "fsgnj.s" { // 'F' extension.
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 }
+
+test "fsgnjn.s" { // 'F' extension.
+    var cpu = Cpu();
+
+    // rd <- abs(rs1) * -sgn(rs2), pc += 4
+    var pc: u32 = cpu.pc;
+    const rd: u32 = 1;
+    const rs1: u32 = 4;
+    const rs2: u32 = 5;
+    cpu.freg[rs1] = -56323.0;
+    cpu.freg[rs2] = 75.0;
+    const expected = @fabs(cpu.freg[rs1]) * -sgn(cpu.freg[rs2]);
+
+    _ = ArvissExecute(&cpu, (0b0010000 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | (0b001 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOPFP));
+
+    // rd <- abs(rs1) * -sgn(rs2)
+    try testing.expectEqual(expected, cpu.freg[rd]);
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+}
