@@ -2232,3 +2232,140 @@ test "fmv.x.w" { // 'F' extension.
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 }
+
+test "fclass.s" { // 'F' extension
+    var cpu = Cpu();
+
+    var pc: u32 = cpu.pc;
+    const rd: u32 = 12;
+    const rs1: u32 = 6;
+
+    // rs1 is -infinity.
+    cpu.freg[rs1] = -std.math.inf(f32);
+    var expected: u32 = (1 << 0);
+
+    _ = ArvissExecute(&cpu, (0b1110000 << 25) | encodeRs2(0b00000) | encodeRs1(rs1) | (0b001 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOPFP));
+
+    // rs is -infinity.
+    try testing.expectEqual(expected, cpu.xreg[rd]);
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+
+    // rs1 is infinity.
+    pc = cpu.pc;
+    cpu.freg[rs1] = std.math.inf(f32);
+    expected = (1 << 7);
+
+    _ = ArvissExecute(&cpu, (0b1110000 << 25) | encodeRs2(0b00000) | encodeRs1(rs1) | (0b001 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOPFP));
+
+    // rs is infinity.
+    try testing.expectEqual(expected, cpu.xreg[rd]);
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+
+    // rs1 is -0.
+    pc = cpu.pc;
+    cpu.freg[rs1] = @bitCast(f32, asU32(0x80000000));
+    expected = (1 << 3);
+
+    _ = ArvissExecute(&cpu, (0b1110000 << 25) | encodeRs2(0b00000) | encodeRs1(rs1) | (0b001 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOPFP));
+
+    // rs is -0.
+    try testing.expectEqual(expected, cpu.xreg[rd]);
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+
+    // rs1 is 0.
+    pc = cpu.pc;
+    cpu.freg[rs1] = 0.0;
+    expected = (1 << 4);
+
+    _ = ArvissExecute(&cpu, (0b1110000 << 25) | encodeRs2(0b00000) | encodeRs1(rs1) | (0b001 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOPFP));
+
+    // rs is 0.
+    try testing.expectEqual(expected, cpu.xreg[rd]);
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+
+    // rs1 is a negative normal number.
+    pc = cpu.pc;
+    cpu.freg[rs1] = -1234.5;
+    expected = (1 << 1);
+
+    _ = ArvissExecute(&cpu, (0b1110000 << 25) | encodeRs2(0b00000) | encodeRs1(rs1) | (0b001 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOPFP));
+
+    // rs is a negative normal number.
+    try testing.expectEqual(expected, cpu.xreg[rd]);
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+
+    // rs1 is a positive normal number.
+    pc = cpu.pc;
+    cpu.freg[rs1] = 1234.5;
+    expected = (1 << 6);
+
+    _ = ArvissExecute(&cpu, (0b1110000 << 25) | encodeRs2(0b00000) | encodeRs1(rs1) | (0b001 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOPFP));
+
+    // rs is a positive normal number.
+    try testing.expectEqual(expected, cpu.xreg[rd]);
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+
+    // rs1 is a negative subnormal number (sign bit is set and exponent is zero ... significand is not zero)
+    pc = cpu.pc;
+    cpu.freg[rs1] = @bitCast(f32, asU32(0x80000001));
+    expected = (1 << 2);
+
+    _ = ArvissExecute(&cpu, (0b1110000 << 25) | encodeRs2(0b00000) | encodeRs1(rs1) | (0b001 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOPFP));
+
+    // rs is a negative subnormal number.
+    try testing.expectEqual(expected, cpu.xreg[rd]);
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+
+    // rs1 is a positive subnormal number (sign bit is clear and exponent is zero ... significand is not zero)
+    pc = cpu.pc;
+    cpu.freg[rs1] = @bitCast(f32, asU32(0x00000001));
+    expected = (1 << 5);
+
+    _ = ArvissExecute(&cpu, (0b1110000 << 25) | encodeRs2(0b00000) | encodeRs1(rs1) | (0b001 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOPFP));
+
+    // rs is a positive subnormal number.
+    try testing.expectEqual(expected, cpu.xreg[rd]);
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+
+    // rs1 is a signalling NaN.
+    pc = cpu.pc;
+    cpu.freg[rs1] = @bitCast(f32, asU32(0x7f800001));
+    expected = (1 << 8);
+
+    _ = ArvissExecute(&cpu, (0b1110000 << 25) | encodeRs2(0b00000) | encodeRs1(rs1) | (0b001 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOPFP));
+
+    // rs is a signalling NaN.
+    try testing.expectEqual(expected, cpu.xreg[rd]);
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+
+    // rs1 is a quiet NaN.
+    pc = cpu.pc;
+    cpu.freg[rs1] = @bitCast(f32, asU32(0x7fc00000));
+    expected = (1 << 9);
+
+    _ = ArvissExecute(&cpu, (0b1110000 << 25) | encodeRs2(0b00000) | encodeRs1(rs1) | (0b001 << 12) | encodeRd(rd) | opcodeAsU32(Opcode.opOPFP));
+
+    // rs is a quiet NaN.
+    try testing.expectEqual(expected, cpu.xreg[rd]);
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+}
