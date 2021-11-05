@@ -1876,3 +1876,27 @@ test "fnmsub.s" { // 'F' extension.
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 }
+
+test "fnmadd.s" { // 'F' extension.
+    var cpu = Cpu();
+
+    // rd <- -(rs1 * rs2) - rs3, pc += 4
+    var pc: u32 = cpu.pc;
+    const rd: u32 = 5;
+    const rs1: u32 = 2;
+    const rs2: u32 = 29;
+    const rs3: u32 = 3;
+    const rm: u32 = @enumToInt(arviss.ArvissRoundingMode.rmDYN);
+    cpu.freg[rs1] = 1244.5;
+    cpu.freg[rs2] = 10.0;
+    cpu.freg[rs3] = 100.0;
+    const expected = -(cpu.freg[rs1] * cpu.freg[rs2]) - cpu.freg[rs3];
+
+    _ = ArvissExecute(&cpu, encodeRs3(rs3) | (0b00 << 25) | encodeRs2(rs2) | encodeRs1(rs1) | encodeRm(rm) | encodeRd(rd) | opcodeAsU32(Opcode.opNMADD));
+
+    // rd <- (rs1 * rs2) - rs3
+    try testing.expectEqual(expected, cpu.freg[rd]);
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+}
