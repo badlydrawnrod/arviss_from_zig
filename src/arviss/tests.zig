@@ -1769,7 +1769,31 @@ test "flw" { // 'F' extension.
 
     // rd <= f32(rs1 + imm_i)
     try testing.expectEqual(expected, cpu.freg[rd]);
-    
+
+    // pc <- pc + 4
+    try testing.expectEqual(pc + 4, cpu.pc);
+}
+
+
+test "fsw" { // 'F' extension.
+    var cpu = Cpu();
+
+    // f32(rs1 + imm_s) = rs2, pc += 4
+    var pc: u32 = cpu.pc;
+    const imm_s: i32 = 222;
+    const rs1: u32 = 2;
+    const rs2: u32 = 29;
+    cpu.xreg[rs1] = rambase + ramsize / 2;
+    const expected: f32 = 123456.99;
+    cpu.freg[rs2] = expected;
+
+    _ = ArvissExecute(&cpu, encodeS(imm_s) | encodeRs2(rs2) | encodeRs1(rs1) | (0b010 << 12) | opcodeAsU32(Opcode.opSTOREFP));
+
+    // m32(rs1 + imm_s) <- rs2
+    const word_result: u32 = memory.read32(asU32(asI32(cpu.xreg[rs1]) + imm_s), &cpu.busCode);
+
+    try testing.expectEqual(expected, @bitCast(f32, word_result));
+
     // pc <- pc + 4
     try testing.expectEqual(pc + 4, cpu.pc);
 }
