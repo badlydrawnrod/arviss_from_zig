@@ -129,12 +129,27 @@ inline fn encodeRd(n: u32) u32 {
     return n << 7;
 }
 
-inline fn encodeJ(n: u32) u32 {
-    return ((n & 0x100000) << 11) // imm[20]    -> j[31]
-    | ((n & 0x7fe) << 20) // imm[10:1]  -> j[30:21]
-    | ((n & 0x800) << 9) // imm[11]    -> j[20]
-    | (n & 0x000ff000) // imm[19:12] -> j[19:12]
-    ;
+// inline fn encodeJ(n: u32) u32 {
+//     return ((n & 0x100000) << 11) // imm[20]    -> j[31]
+//     | ((n & 0x7fe) << 20) // imm[10:1]  -> j[30:21]
+//     | ((n & 0x800) << 9) // imm[11]    -> j[20]
+//     | (n & 0x000ff000) // imm[19:12] -> j[19:12]
+//     ;
+// }
+
+inline fn encodeJ(n: anytype) u32 {
+    switch (@TypeOf(n)) {
+        u32 => {
+            return ((n & 0x100000) << 11) // imm[20]    -> j[31]
+            | ((n & 0x7fe) << 20) // imm[10:1]  -> j[30:21]
+            | ((n & 0x800) << 9) // imm[11]    -> j[20]
+            | (n & 0x000ff000) // imm[19:12] -> j[19:12]
+            ;
+        },
+        else => {
+            @compileError("Unable to encode" ++ @typeName(@TypeOf(n)) ++ " to J");
+        },
+    }
 }
 
 inline fn encodeB(n: u32) u32 {
